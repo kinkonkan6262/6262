@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>きんこんかん ライセンス管理 Pro</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Meiryo,"MS PGothic",sans-serif;background:#f0f4f0;color:#222;font-size:15px}
+header{background:#1B5E20;color:#fff;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+header h1{font-size:18px}
+header p{font-size:11px;color:#A5D6A7}
+nav{background:#2E7D32;display:flex}
+nav button{padding:12px 20px;background:none;border:none;border-bottom:3px solid transparent;color:#A5D6A7;font-size:14px;font-weight:bold;cursor:pointer;font-family:inherit}
+nav button.on{color:#fff;border-bottom-color:#69F0AE}
+nav button:hover{color:#fff}
+.page{display:none;max-width:950px;margin:20px auto;padding:0 14px}
+.page.on{display:block}
+.card{background:#fff;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,.1);padding:22px;margin-bottom:20px}
+.card h2{font-size:16px;color:#1B5E20;border-bottom:2px solid #C8E6C9;padding-bottom:10px;margin-bottom:16px}
+label{display:block;font-size:13px;font-weight:bold;color:#444;margin:12px 0 4px}
+.hint{font-size:11px;color:#999;margin-bottom:4px}
+select,input[type=text],textarea{width:100%;padding:10px 12px;border:2px solid #ccc;border-radius:7px;font-size:14px;font-family:inherit}
+select:focus,input:focus,textarea:focus{outline:none;border-color:#1B5E20}
+textarea{height:70px;resize:vertical}
+.preview{background:#E8F5E9;border:2px dashed #81C784;border-radius:8px;padding:14px;margin:14px 0;text-align:center}
+.preview small{font-size:11px;color:#555;display:block;margin-bottom:4px}
+.preview b{font-family:monospace;font-size:20px;color:#1B5E20}
+.btn{display:inline-block;padding:11px 18px;border:none;border-radius:7px;font-size:14px;font-weight:bold;cursor:pointer;font-family:inherit;margin-right:6px;margin-top:4px}
+.btn:hover{opacity:.85}
+.green{background:#1B5E20;color:#fff}
+.gray{background:#e0e0e0;color:#333}
+.red{background:#FFEBEE;color:#C62828;border:1px solid #FFCDD2}
+.orange{background:#E65100;color:#fff}
+.btn-wide{width:100%;display:block;text-align:center;margin-top:10px;padding:14px}
+.ok{background:#E8F5E9;border-left:5px solid #2E7D32;border-radius:7px;padding:14px;margin-top:12px;display:none}
+.ok span{font-family:monospace;font-size:18px;font-weight:bold;color:#1B5E20;display:block;margin:6px 0}
+.err{background:#FFEBEE;border-left:5px solid #C62828;border-radius:7px;padding:12px;margin-top:10px;font-size:13px;display:none}
+.ai-text{background:#fff;border:1px solid #FFD54F;border-radius:7px;padding:14px;font-size:13px;line-height:1.9;min-height:70px;white-space:pre-wrap;margin-top:10px;color:#333}
+.stats{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.stat{flex:1;min-width:90px;background:#E8F5E9;border-radius:8px;padding:12px;text-align:center}
+.stat big{display:block;font-size:26px;font-weight:bold;color:#1B5E20}
+.stat small{font-size:11px;color:#666}
+.search-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.search-row input{flex:1;min-width:160px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:#1B5E20;color:#fff;padding:10px 12px;text-align:left;white-space:nowrap}
+td{padding:10px 12px;border-bottom:1px solid #eee;vertical-align:middle}
+tr:hover td{background:#f9fbf9}
+.kc{font-family:monospace;font-weight:bold;color:#1B5E20;background:#E8F5E9;padding:2px 7px;border-radius:4px;font-size:13px}
+.badge{display:inline-block;padding:3px 9px;border-radius:12px;font-size:11px;font-weight:bold}
+.b-ok{background:#C8E6C9;color:#1B5E20}
+.b-stop{background:#FFCDD2;color:#B71C1C}
+.b-exp{background:#FFF9C4;color:#F57F17}
+.ab{padding:5px 10px;border:none;border-radius:5px;font-size:12px;font-weight:bold;cursor:pointer;margin-right:3px;font-family:inherit}
+.ab-stop{background:#FFEBEE;color:#C62828}
+.ab-start{background:#E8F5E9;color:#1B5E20}
+.ab-del{background:#f5f5f5;color:#888}
+.empty{text-align:center;padding:40px;color:#bbb;font-size:14px}
+.phead{border-bottom:3px solid #1B5E20;padding-bottom:14px;margin-bottom:18px}
+.phead h2{font-size:20px;color:#1B5E20}
+.phead p{font-size:12px;color:#666;margin-top:6px;line-height:1.8}
+.warn{background:#FFF8E1;border:1px solid #FFE082;border-radius:7px;padding:10px 14px;font-size:12px;color:#5D4037;margin-bottom:12px;display:none}
+@media print{.noprint{display:none!important}body{background:#fff}@page{margin:15mm 20mm;size:A4}}
+</style>
+</head>
+<body>
+
+<header class="noprint">
+  <div><h1>🔐 きんこんかん ライセンス管理 Pro</h1><p>AI支援記録Pro Ver.3 ― 発行・管理・印刷</p></div>
+  <div style="font-size:11px;color:#C8E6C9">有限会社九州福祉サービス</div>
+</header>
+
+<nav class="noprint">
+  <button id="tab-issue" class="on" onclick="go('issue')">📤 キーを発行する</button>
+  <button id="tab-list"  onclick="go('list')">📋 発行済み一覧</button>
+  <button id="tab-print" onclick="go('print')">🖨 印刷用リスト</button>
+</nav>
+
+<!-- 発行ページ -->
+<div id="page-issue" class="page on">
+  <div class="card">
+    <h2>📤 ライセンスキーを発行する</h2>
+    <label>① プランを選んでください</label>
+    <div class="hint">お客様に合ったプランを選びます</div>
+    <select id="selPlan" onchange="preview()">
+      <option value="trial">🟡 お試し版（30日間）</option>
+      <option value="year">🔵 1年版（1年間）</option>
+      <option value="unlimited">🟢 無制限版（期限なし）</option>
+    </select>
+    <label>② キー番号</label>
+    <div class="hint">自動で増えます。そのままでOKです。</div>
+    <input type="text" id="inNum" value="1" oninput="preview()">
+    <label>③ お客様名</label>
+    <div class="hint">例：山田様、○○デイサービス</div>
+    <input type="text" id="inName" placeholder="お客様名または事業所名">
+    <label>④ メモ（任意）</label>
+    <textarea id="inMemo" placeholder="例：2026年3月支払い済み　TEL: 000-0000-0000"></textarea>
+    <div class="preview">
+      <small>発行されるキー（プレビュー）</small>
+      <b id="pvKey">—</b>
+    </div>
+    <button class="btn green btn-wide" onclick="doIssue()">✅ このキーを発行する</button>
+    <div class="err" id="errBox"></div>
+    <div class="ok" id="okBox">
+      ✅ 発行しました！
+      <span id="okKey"></span>
+      <div id="okDetail" style="font-size:13px;color:#555"></div>
+      <button class="btn gray" style="margin-top:8px;font-size:12px" onclick="go('list')">📋 一覧で確認する →</button>
+    </div>
+  </div>
+  <div class="card">
+    <h2>🤖 お客様へのメール案内文</h2>
+    <p style="font-size:13px;color:#666;margin-bottom:12px">キーを発行したあとボタンを押すと、送付メールの文章が自動で作成されます。</p>
+    <button class="btn orange btn-wide" onclick="doAI()">📧 案内メールを自動作成する</button>
+    <div class="ai-text" id="aiText">ここにメール文が表示されます。</div>
+    <div style="margin-top:8px">
+      <button class="btn gray" id="cpBtn" onclick="doCopy()" style="display:none">📋 文章をコピーする</button>
+      <span id="cpMsg" style="font-size:12px;color:#1B5E20;margin-left:8px;display:none">✅ コピーしました！</span>
+    </div>
+  </div>
+</div>
+
+<!-- 一覧ページ -->
+<div id="page-list" class="page">
+  <div class="card">
+    <h2>📋 発行済みキー一覧</h2>
+    <div class="warn" id="lsWarn">⚠️ このブラウザではデータの自動保存ができません。CSVで手動バックアップをお取りください。</div>
+    <div class="stats" id="statsArea"></div>
+    <div class="search-row noprint">
+      <input type="text" id="inSearch" placeholder="🔍 キーまたはお客様名で検索..." oninput="drawTable()">
+      <button class="btn gray" onclick="doCSV()">📥 CSV出力</button>
+      <button class="btn gray" onclick="doImport()">📤 CSV読込</button>
+      <button class="btn red" onclick="doDelAll()">🗑 全削除</button>
+    </div>
+    <input type="file" id="fileInput" accept=".csv" style="display:none" onchange="handleImport(event)">
+    <div id="tblArea"></div>
+  </div>
+</div>
+
+<!-- 印刷ページ -->
+<div id="page-print" class="page">
+  <div class="noprint" style="margin-bottom:14px;display:flex;gap:8px">
+    <button class="btn green" onclick="window.print()">🖨 印刷する</button>
+    <button class="btn gray" onclick="drawPrint()">🔄 最新に更新</button>
+  </div>
+  <div class="card">
+    <div class="phead">
+      <div style="font-size:11px;color:#388E3C;margin-bottom:4px">きんこんかん ｜ 有限会社九州福祉サービス</div>
+      <h2>🔐 ライセンスキー一覧</h2>
+      <p>このキーをお客様にお渡しください。「Anna AI支援記録Pro Ver.3」の認証画面に入力するとご利用いただけます。<br>サポート：<b>azu18ei20@gmail.com</b></p>
+    </div>
+    <div id="printArea"></div>
+    <div style="text-align:center;font-size:11px;color:#aaa;margin-top:20px;padding-top:10px;border-top:1px solid #eee">
+      © きんこんかん ｜ 有限会社九州福祉サービス ｜ 宮崎市 ｜ azu18ei20@gmail.com
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== ストレージ =====
+var MEM = [];
+var LS_KEY = 'kk_lic';
+var lsOk = (function(){
+  try{ localStorage.setItem('__t','1'); localStorage.removeItem('__t'); return true; }
+  catch(e){ return false; }
+})();
+
+function load(){
+  if(lsOk){
+    try{ MEM = JSON.parse(localStorage.getItem(LS_KEY)||'[]'); }catch(e){ MEM=[]; }
+  }
+  return MEM;
+}
+function save(){
+  if(lsOk){
+    try{ localStorage.setItem(LS_KEY, JSON.stringify(MEM)); }catch(e){}
+  }
+}
+
+// ===== タブ =====
+function go(name){
+  ['issue','list','print'].forEach(function(n){
+    document.getElementById('page-'+n).className='page'+(n===name?' on':'');
+    document.getElementById('tab-'+n).className=(n===name?'on':'');
+  });
+  if(name==='list'){
+    load();
+    if(!lsOk) document.getElementById('lsWarn').style.display='block';
+    drawStats();
+    drawTable();
+  }
+  if(name==='print'){ load(); drawPrint(); }
+}
+
+// ===== キー生成 =====
+function makeKey(type,num){
+  var n=('0000'+num).slice(-4);
+  if(type==='trial') return 'TRIAL-2026-'+n;
+  if(type==='year')  return 'ONE-2026-'+n;
+  return 'PRO-9999-'+n;
+}
+function planName(type){
+  return type==='trial'?'お試し版（30日）':type==='year'?'1年版':'無制限版';
+}
+function expiry(type){
+  var d=new Date();
+  if(type==='trial'){ d.setDate(d.getDate()+30); return d.toISOString().slice(0,10); }
+  if(type==='year'){ d.setFullYear(d.getFullYear()+1); return d.toISOString().slice(0,10); }
+  return '2099-12-31';
+}
+function preview(){
+  var t=document.getElementById('selPlan').value;
+  var n=parseInt(document.getElementById('inNum').value)||1;
+  document.getElementById('pvKey').textContent=makeKey(t,n);
+}
+
+// ===== 発行 =====
+function doIssue(){
+  var t=document.getElementById('selPlan').value;
+  var n=parseInt(document.getElementById('inNum').value)||1;
+  var name=document.getElementById('inName').value.trim()||'未設定';
+  var memo=document.getElementById('inMemo').value.trim();
+  var key=makeKey(t,n);
+  load();
+  var err=document.getElementById('errBox');
+  var ok=document.getElementById('okBox');
+  err.style.display='none'; ok.style.display='none';
+  if(MEM.some(function(d){return d.key===key;})){
+    err.textContent='❌ このキー番号はすでに発行済みです。番号を変えてください。';
+    err.style.display='block'; return;
+  }
+  var exp=expiry(t);
+  var today=new Date().toISOString().slice(0,10);
+  MEM.push({key:key,customer:name,plan:planName(t),type:t,status:'有効',expires:exp,issued:today,memo:memo});
+  save();
+  document.getElementById('inNum').value=n+1;
+  preview();
+  document.getElementById('okKey').textContent=key;
+  document.getElementById('okDetail').innerHTML='お客様：<b>'+name+'</b>　プラン：'+planName(t)+'　有効期限：'+(exp==='2099-12-31'?'無制限':exp);
+  ok.style.display='block';
+  document.getElementById('aiText').textContent='ここにメール文が表示されます。';
+  document.getElementById('cpBtn').style.display='none';
+}
+
+// ===== メール案内文 =====
+function doAI(){
+  load();
+  if(!MEM.length){ document.getElementById('aiText').textContent='まずキーを発行してください。'; return; }
+  var r=MEM[MEM.length-1];
+  var el=document.getElementById('aiText');
+  var exp=r.expires==='2099-12-31'?'無制限':r.expires;
+  el.textContent='件名：Anna AI支援記録Pro ライセンスキーのご案内\n\n'
+    +r.customer+'様\n\nこの度はAnna AI支援記録Pro Ver.3をご契約いただきありがとうございます。\n下記のライセンスキーをお送りします。\n\n'
+    +'【ライセンスキー】　'+r.key+'\n【プラン】　'+r.plan+'\n【有効期限】　'+exp+'\n\n'
+    +'ご利用方法：Anna AI支援記録のファイルを開き、認証画面にキーを入力してください。\n\n'
+    +'ご不明な点はお気軽にご連絡ください。\nサポート：azu18ei20@gmail.com\n\nAnna　有限会社九州福祉サービス';
+  document.getElementById('cpBtn').style.display='inline-block';
+}
+function doCopy(){
+  navigator.clipboard.writeText(document.getElementById('aiText').textContent).then(function(){
+    var m=document.getElementById('cpMsg'); m.style.display='inline';
+    setTimeout(function(){m.style.display='none';},3000);
+  });
+}
+
+// ===== ステータス =====
+function getStatus(row){
+  if(row.status==='停止') return 'stopped';
+  var t=new Date(); t.setHours(0,0,0,0);
+  var e=new Date(row.expires); e.setHours(0,0,0,0);
+  if(row.expires!=='2099-12-31'&&t>e) return 'expired';
+  return 'active';
+}
+function badge(st){
+  if(st==='active')  return '<span class="badge b-ok">✅ 有効</span>';
+  if(st==='stopped') return '<span class="badge b-stop">⛔ 停止中</span>';
+  return '<span class="badge b-exp">⏰ 期限切れ</span>';
+}
+
+// ===== 統計 =====
+function drawStats(){
+  var tot=MEM.length,act=0,tr=0,yr=0,pr=0;
+  MEM.forEach(function(d){
+    if(getStatus(d)==='active') act++;
+    if(d.type==='trial') tr++; else if(d.type==='year') yr++; else pr++;
+  });
+  function box(n,label){ return '<div class="stat"><big>'+n+'</big><small>'+label+'</small></div>'; }
+  document.getElementById('statsArea').innerHTML=
+    box(tot,'合計発行')+box(act,'有効中')+box(tr,'お試し')+box(yr,'1年版')+box(pr,'無制限');
+}
+
+// ===== テーブル =====
+function drawTable(){
+  var q=(document.getElementById('inSearch').value||'').toLowerCase();
+  var data=q?MEM.filter(function(d){return(d.key+d.customer+d.plan).toLowerCase().indexOf(q)>=0;}):MEM;
+  var area=document.getElementById('tblArea');
+  if(!data.length){
+    area.innerHTML='<div class="empty">'+(q?'検索結果がありません。':'まだキーが発行されていません。<br><small style="font-size:12px">「キーを発行する」タブでキーを作成してください。</small>')+'</div>';
+    return;
+  }
+  var h='<table><tr><th>#</th><th>ライセンスキー</th><th>プラン</th><th>状態</th><th>有効期限</th><th>お客様名</th><th>発行日</th><th class="noprint">操作</th></tr>';
+  data.forEach(function(row,i){
+    var st=getStatus(row), exp=row.expires==='2099-12-31'?'無制限':row.expires;
+    h+='<tr><td style="color:#999">'+(i+1)+'</td><td><span class="kc">'+row.key+'</span></td><td>'+row.plan+'</td><td>'+badge(st)+'</td><td>'+exp+'</td><td>'+(row.customer||'')+'</td><td>'+(row.issued||'')+'</td>'
+      +'<td class="noprint">'
+      +(row.status==='停止'
+        ?'<button class="ab ab-start" onclick="toggle(\''+row.key+'\')">▶ 再開</button>'
+        :'<button class="ab ab-stop"  onclick="toggle(\''+row.key+'\')">⏸ 停止</button>')
+      +'<button class="ab ab-del" onclick="del(\''+row.key+'\')">🗑</button>'
+      +'</td></tr>';
+  });
+  area.innerHTML=h+'</table>';
+}
+
+function toggle(key){
+  load();
+  var i=MEM.findIndex(function(d){return d.key===key;});
+  if(i<0) return;
+  MEM[i].status=MEM[i].status==='停止'?'有効':'停止';
+  save(); drawStats(); drawTable();
+}
+function del(key){
+  if(!confirm('「'+key+'」を削除しますか？')) return;
+  load(); MEM=MEM.filter(function(d){return d.key!==key;}); save(); drawStats(); drawTable();
+}
+function doDelAll(){
+  if(!confirm('全てのキーを削除しますか？\n元に戻せません。')) return;
+  MEM=[]; save(); drawStats(); drawTable();
+}
+
+// ===== CSV出力 =====
+function doCSV(){
+  load();
+  var csv='﻿ライセンスキー,お客様名,プラン,状態,有効期限,発行日,メモ\n';
+  MEM.forEach(function(d){
+    csv+='"'+d.key+'","'+(d.customer||'')+'","'+d.plan+'","'+d.status+'","'+d.expires+'","'+(d.issued||'')+'","'+(d.memo||'')+'"\n';
+  });
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));
+  a.download='ライセンス一覧_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+}
+
+// ===== CSV読込 =====
+function doImport(){ document.getElementById('fileInput').click(); }
+function handleImport(e){
+  var file=e.target.files[0]; if(!file) return;
+  var reader=new FileReader();
+  reader.onload=function(ev){
+    var lines=ev.target.result.replace(/^﻿/,'').split('\n');
+    var count=0;
+    load();
+    for(var i=1;i<lines.length;i++){
+      var cols=lines[i].match(/"([^"]*)"/g);
+      if(!cols||cols.length<6) continue;
+      var row={key:cols[0].slice(1,-1),customer:cols[1].slice(1,-1),plan:cols[2].slice(1,-1),
+        status:cols[3].slice(1,-1),expires:cols[4].slice(1,-1),issued:cols[5].slice(1,-1),
+        memo:cols[6]?cols[6].slice(1,-1):'',type:''};
+      if(row.key.indexOf('TRIAL')===0) row.type='trial';
+      else if(row.key.indexOf('ONE')===0) row.type='year';
+      else row.type='unlimited';
+      if(!MEM.some(function(d){return d.key===row.key;})){ MEM.push(row); count++; }
+    }
+    save(); drawStats(); drawTable();
+    alert('✅ '+count+'件を読み込みました。');
+    e.target.value='';
+  };
+  reader.readAsText(file,'UTF-8');
+}
+
+// ===== 印刷 =====
+function drawPrint(){
+  if(!MEM.length){ document.getElementById('printArea').innerHTML='<div class="empty">まだキーがありません。</div>'; return; }
+  var g={trial:[],year:[],unlimited:[]};
+  MEM.forEach(function(d){ if(g[d.type]) g[d.type].push(d); });
+  function sec(title,note,rows){
+    if(!rows.length) return '';
+    var h='<div style="margin-bottom:24px"><div style="background:#1B5E20;color:#fff;padding:9px 14px;border-radius:7px;font-weight:bold;margin-bottom:9px">'+title+'</div>'
+      +'<div style="font-size:12px;color:#555;background:#E8F5E9;padding:7px 12px;border-left:4px solid #2E7D32;border-radius:4px;margin-bottom:9px">'+note+'</div>'
+      +'<table style="width:100%;border-collapse:collapse;font-size:13px"><tr style="background:#2E7D32;color:#fff">'
+      +'<th style="padding:9px 12px;width:32px">No.</th><th style="padding:9px 12px">ライセンスキー</th><th style="padding:9px 12px">状態</th><th style="padding:9px 12px">有効期限</th><th style="padding:9px 12px">お客様名</th></tr>';
+    rows.forEach(function(row,i){
+      var exp=row.expires==='2099-12-31'?'無制限':row.expires;
+      var st=getStatus(row),stL=st==='active'?'有効':st==='stopped'?'停止中':'期限切れ';
+      h+='<tr style="'+(i%2?'background:#F1F8E9':'')+'"><td style="padding:9px 12px;color:#999">'+(i+1)+'</td>'
+        +'<td style="padding:9px 12px;font-family:monospace;font-weight:bold;color:#1B5E20">'+row.key+'</td>'
+        +'<td style="padding:9px 12px">'+stL+'</td><td style="padding:9px 12px">'+exp+'</td>'
+        +'<td style="padding:9px 12px">'+(row.customer==='未設定'?'':row.customer)+'</td></tr>';
+    });
+    return h+'</table></div>';
+  }
+  document.getElementById('printArea').innerHTML=
+    sec('🟡 お試し版（30日間）','有効期限：発行日から30日間。',g.trial)+
+    sec('🔵 1年版（1年間）','有効期限：発行日から1年間。',g.year)+
+    sec('🟢 無制限版（期限なし）','有効期限：なし。永久にご利用いただけます。',g.unlimited);
+}
+
+// ===== 起動 =====
+window.onload=function(){ load(); preview(); };
+</script>
+</body>
+</html>
