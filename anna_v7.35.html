@@ -992,7 +992,7 @@ function MonthNav({ym,setYm}){
     <button onClick={()=>mv(1)} style={{padding:"4px 10px",border:"1px solid #C8E6C9",background:"#fff",borderRadius:4,cursor:"pointer",fontSize:12}}>翌月 ▶</button>
   </div>;
 }
-function AttTab({sel,att,setAtt,jukyu,setJukyu}){
+function AttTab({sel,att,setAtt,jukyu,setJukyu,names,setSel}){
   const [ym,setYm]=useState(monthKey(new Date()));
   const [defIn,setDefIn]=useState("10:00");
   const [defOut,setDefOut]=useState("15:00");
@@ -1049,6 +1049,17 @@ function AttTab({sel,att,setAtt,jukyu,setJukyu}){
     <Header title={"\u1F4C5 \u30B5\u30FC\u30D3\u30B9\u63D0\u4F9B\u5B9F\u7E3E\u8A18\u9332 \u2015 "+sel}>
       <PrtBtn/>
     </Header>
+    {(names&&names.length>0)&&<div className="np" style={{display:"flex",gap:4,overflowX:"auto",padding:"4px 2px 0",marginBottom:8,borderBottom:"2px solid #C8E6C9"}}>
+      {names.map(n=>(
+        <button key={n} onClick={()=>setSel&&setSel(n)} title={n}
+          style={{flex:"0 0 auto",padding:"5px 12px",fontSize:12,cursor:"pointer",whiteSpace:"nowrap",borderRadius:"6px 6px 0 0",
+            border:"1px solid "+(sel===n?"#388E3C":"#C8E6C9"),
+            borderBottom:sel===n?"2px solid #388E3C":"2px solid transparent",
+            background:sel===n?"#388E3C":"#F1F8E9",
+            color:sel===n?"#fff":"#33691E",
+            fontWeight:sel===n?"bold":"normal"}}>{n}</button>
+      ))}
+    </div>}
     <div className="np" style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap",marginBottom:8}}>
       <MonthNav ym={ym} setYm={setYm}/>
       <span style={{fontSize:11,fontWeight:"bold",color:"#1B5E20"}}>受給者証番号</span>
@@ -4398,13 +4409,21 @@ function App({facility,session,onLogout}){
       if(pend.length===0) return;
 
       try{
-        const res=await api("/save",{changes:pend.map(c=>({userName:c.userName,dataType:c.dataType,content:c.content,base:c.base}))});
-        (res.saved||[]).forEach(sv=>{
+        // 保存を小分けにして送る（Cloudflare無料枠の「1回50操作まで」対策）
+        const CHUNK=20;
+        const allSaved=[]; const allConflicts=[];
+        for(let i=0;i<pend.length;i+=CHUNK){
+          const part=pend.slice(i,i+CHUNK);
+          const res=await api("/save",{changes:part.map(c=>({userName:c.userName,dataType:c.dataType,content:c.content,base:c.base}))});
+          (res.saved||[]).forEach(sv=>allSaved.push(sv));
+          if(res.conflicts) res.conflicts.forEach(cf=>allConflicts.push(cf));
+        }
+        allSaved.forEach(sv=>{
           const k=sv.userName+"|"+sv.dataType;
           stampsRef.current[k]=sv.updatedAt;
           const c=pend.find(x=>x._k===k); if(c) lastSentRef.current[k]=c._s;
         });
-        if(res.conflicts && res.conflicts.length) setConflicts(res.conflicts);
+        if(allConflicts.length) setConflicts(allConflicts);
         setSyncErr("");
       }catch(e){ setSyncErr("クラウド保存に失敗しました（"+e.message+"）"); }
     },1000);
@@ -4951,7 +4970,7 @@ function App({facility,session,onLogout}){
         {sel&&tab===6&&<AssessTab sel={sel} data={assessData} setData={setAssessData} onLinkPlan={linkAssessToplan}/>}
         {sel&&tab===7&&<CaseTab d={d} s={s}/>}
         {sel&&tab===8&&<DocTab d={d} s={s}/>}
-        {sel&&tab===9&&<AttTab sel={sel} att={att} setAtt={setAtt} jukyu={jukyu} setJukyu={setJukyu}/>}
+        {sel&&tab===9&&<AttTab sel={sel} att={att} setAtt={setAtt} jukyu={jukyu} setJukyu={setJukyu} names={names} setSel={setSel}/>}
         {tab===10&&<BillTab names={names} allData={allData}/>}
         {tab===11&&<WageTab names={names} allData={allData} setAllData={setAllData} office={office}/>}
         {tab===12&&<WageDetailTab sel={sel} att={att} names={names} allData={allData} office={office}/>}
