@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anna 販売ライセンス遠隔管理</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Meiryo,"MS PGothic",sans-serif;background:#f0f4f0;color:#222;font-size:15px}
+header{background:#1B5E20;color:#fff;padding:14px 20px}
+header h1{font-size:18px}
+header p{font-size:11px;color:#A5D6A7;margin-top:3px}
+.wrap{max-width:950px;margin:20px auto;padding:0 14px}
+.card{background:#fff;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,.1);padding:22px;margin-bottom:20px}
+.card h2{font-size:16px;color:#1B5E20;border-bottom:2px solid #C8E6C9;padding-bottom:10px;margin-bottom:16px}
+.steps{background:#FFF8E1;border:1px solid #FFE082;border-radius:8px;padding:14px 18px;font-size:13px;line-height:2;color:#5D4037;margin-bottom:16px}
+.steps b{color:#BF360C}
+.btn{display:inline-block;padding:11px 18px;border:none;border-radius:7px;font-size:14px;font-weight:bold;cursor:pointer;font-family:inherit;margin:4px 6px 4px 0;text-decoration:none}
+.btn:hover{opacity:.85}
+.green{background:#1B5E20;color:#fff}
+.blue{background:#1565C0;color:#fff}
+.gray{background:#e0e0e0;color:#333}
+.status-line{font-size:13px;margin:10px 0;padding:10px 14px;border-radius:7px;display:none}
+.st-ok{background:#E8F5E9;color:#1B5E20;border-left:5px solid #2E7D32}
+.st-err{background:#FFEBEE;color:#C62828;border-left:5px solid #C62828}
+.stats{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.stat{flex:1;min-width:90px;background:#E8F5E9;border-radius:8px;padding:12px;text-align:center}
+.stat big{display:block;font-size:26px;font-weight:bold;color:#1B5E20}
+.stat small{font-size:11px;color:#666}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:#1B5E20;color:#fff;padding:10px 12px;text-align:left;white-space:nowrap}
+td{padding:9px 12px;border-bottom:1px solid #eee;vertical-align:middle}
+tr:hover td{background:#f9fbf9}
+.kc{font-family:monospace;font-weight:bold;color:#1B5E20;background:#E8F5E9;padding:2px 7px;border-radius:4px;font-size:13px;white-space:nowrap}
+.badge{display:inline-block;padding:3px 9px;border-radius:12px;font-size:11px;font-weight:bold;white-space:nowrap}
+.b-ok{background:#C8E6C9;color:#1B5E20}
+.b-stop{background:#FFCDD2;color:#B71C1C}
+.ab{padding:6px 12px;border:none;border-radius:5px;font-size:12px;font-weight:bold;cursor:pointer;font-family:inherit;white-space:nowrap}
+.ab-stop{background:#FFEBEE;color:#C62828}
+.ab-start{background:#E8F5E9;color:#1B5E20}
+.memo-in{width:100%;min-width:120px;padding:6px 8px;border:1px solid #ddd;border-radius:5px;font-size:12px;font-family:inherit}
+.dirty{background:#FFF3E0;border:1px solid #FFB74D;border-radius:8px;padding:12px 16px;font-size:13px;color:#E65100;font-weight:bold;margin:12px 0;display:none}
+.privacy{font-size:11.5px;color:#888;margin-top:10px;line-height:1.7}
+.search-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.search-row input{flex:1;min-width:160px;padding:10px 12px;border:2px solid #ccc;border-radius:7px;font-size:14px;font-family:inherit}
+@media(max-width:600px){td,th{padding:7px 6px;font-size:12px}}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🛰 Anna 販売ライセンス遠隔管理</h1>
+  <p>お客様の販売版（anna_v7.54_販売版.html）を遠隔で停止・再開します ｜ 合同会社anna</p>
+</header>
+
+<div class="wrap">
+
+  <div class="card">
+    <h2>📖 使い方（3ステップ）</h2>
+    <div class="steps">
+      <b>① 読み込む</b>：下の「現在の状態を読み込む」を押すと、いまGitHubに置いてある状態が表示されます。<br>
+      <b>② 切り替える</b>：未払いのお客様のキーの「⏸ 停止」を押します。（再開するときは「▶ 再開」）<br>
+      <b>③ アップロードする</b>：「license_status.json をダウンロード」→「GitHubのアップロード画面を開く」の順に押し、
+      ダウンロードしたファイルをドラッグ＆ドロップして緑の「Commit changes」ボタンを押せば完了です。<br>
+      反映まで<b>最大5分ほど</b>かかります。お客様が次にソフトを開いたときから停止（または再開）されます。
+    </div>
+    <button class="btn green" onclick="loadRemote()">🔄 現在の状態を読み込む</button>
+    <div id="statusLine" class="status-line"></div>
+  </div>
+
+  <div class="card">
+    <h2>📋 ライセンス一覧</h2>
+    <div class="stats" id="statsArea"></div>
+    <div class="search-row">
+      <input type="text" id="inSearch" placeholder="🔍 キーまたはメモで検索..." oninput="draw()">
+    </div>
+    <div id="tblArea"></div>
+    <div class="dirty" id="dirtyBox">⚠️ 変更がまだGitHubに反映されていません。下の「license_status.json をダウンロード」→ GitHubへアップロードで反映してください。</div>
+    <div style="margin-top:14px">
+      <button class="btn blue" onclick="downloadJson()">📥 license_status.json をダウンロード</button>
+      <a class="btn gray" href="https://github.com/kinkonkan6262/6262/upload/main" target="_blank" rel="noopener">🌐 GitHubのアップロード画面を開く</a>
+    </div>
+    <div class="privacy">
+      ※ お客様名などのメモは<b>このパソコンの中だけ</b>に保存されます。GitHubにアップロードするファイルには
+      ライセンスキーと停止状態のみが含まれ、個人情報は含まれません。
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>➕ キーを追加</h2>
+    <p style="font-size:13px;color:#666;margin-bottom:10px">一覧にないキーを管理したいときに追加できます（例：新しく発行した製品版キー）。</p>
+    <div class="search-row">
+      <input type="text" id="inNewKey" placeholder="例：ANNA-XXXXX-XXXXX-XXXXX" style="text-transform:uppercase">
+      <button class="btn green" onclick="addKey()">追加する</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// 販売版 anna_v7.54_販売版.html に登録済みのライセンスキー
+var KNOWN_KEYS = [
+  "TRIAL-2026-0001","TRIAL-2026-0002","TRIAL-2026-0003","TRIAL-2026-0004","TRIAL-2026-0005",
+  "TRIAL-2026-0006","TRIAL-2026-0007","TRIAL-2026-0008","TRIAL-2026-0009","TRIAL-2026-0010",
+  "TRIAL-2026-0011","TRIAL-2026-0012","TRIAL-2026-0013","TRIAL-2026-0014","TRIAL-2026-0015",
+  "TRIAL-2026-0016","TRIAL-2026-0017","TRIAL-2026-0018","TRIAL-2026-0019","TRIAL-2026-0020",
+  "ANNA-6ZQXY-UG2H7-QUSZ5","ANNA-6472T-ZF9G7-DHP2J","ANNA-MUU3P-2P9ME-8938Z","ANNA-5ZCDF-FYDC2-SM9X5",
+  "ANNA-Y4RD6-QSQJ2-6W9DA","ANNA-CXS2R-PCYX8-QZGV7","ANNA-EGGCC-75G37-ANJBG","ANNA-YN5CC-S4HKU-KYND9",
+  "ANNA-KT9X6-NH4HH-M7DHW","ANNA-P2K6Z-PBJKD-9B4XG","ANNA-WCM3G-SGT7T-PXYEM","ANNA-82MVA-DUREX-GHQ4S",
+  "ANNA-ZDBPA-U6DBW-X985F","ANNA-M6XRV-RXYU6-FQQ2A","ANNA-BXV6T-NCFFM-46QMH","ANNA-RUHFR-AARDK-8U67G",
+  "ANNA-NJ556-YARNT-G4VRB","ANNA-WSFTR-SMTNF-EB8HE","ANNA-7SSFM-ER84P-3KNVJ","ANNA-P5HKH-HP4Q2-PDZXH"
+];
+var STATUS_URL = "https://raw.githubusercontent.com/kinkonkan6262/6262/main/license_status.json";
+
+var stopped = {};      // key -> true（停止中）
+var extraKeys = [];    // 手動追加されたキー
+var memos = {};        // key -> メモ（このブラウザのみに保存）
+var dirty = false;
+
+try{ extraKeys = JSON.parse(localStorage.getItem("kk_rc_extra")||"[]"); }catch(e){ extraKeys=[]; }
+try{ memos = JSON.parse(localStorage.getItem("kk_rc_memo")||"{}"); }catch(e){ memos={}; }
+
+function allKeys(){
+  var seen = {}, out = [];
+  KNOWN_KEYS.concat(extraKeys).forEach(function(k){ if(!seen[k]){ seen[k]=1; out.push(k); } });
+  return out;
+}
+
+function showStatus(ok, text){
+  var el = document.getElementById("statusLine");
+  el.className = "status-line " + (ok ? "st-ok" : "st-err");
+  el.style.display = "block";
+  el.innerHTML = text;
+}
+
+function loadRemote(){
+  showStatus(true, "⏳ 読み込み中…");
+  fetch(STATUS_URL + "?t=" + Date.now(), {cache:"no-store"})
+    .then(function(r){ if(!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+    .then(function(j){
+      stopped = {};
+      ((j && j.stopped) || []).forEach(function(k){
+        stopped[k] = true;
+        if(allKeys().indexOf(k) < 0){ extraKeys.push(k); saveLocal(); }
+      });
+      dirty = false;
+      showStatus(true, "✅ 読み込みました（最終更新：" + ((j && j.updated) || "不明") + "）");
+      draw();
+    })
+    .catch(function(e){
+      showStatus(false, "❌ 読み込めませんでした（" + e.message + "）。license_status.json がまだGitHubに無い場合は、このまま操作してダウンロード→アップロードしてください。");
+      draw();
+    });
+}
+
+function saveLocal(){
+  try{
+    localStorage.setItem("kk_rc_extra", JSON.stringify(extraKeys));
+    localStorage.setItem("kk_rc_memo", JSON.stringify(memos));
+  }catch(e){}
+}
+
+function toggle(key){
+  if(stopped[key]) delete stopped[key];
+  else stopped[key] = true;
+  dirty = true;
+  draw();
+}
+
+function setMemo(key, v){
+  if(v) memos[key] = v; else delete memos[key];
+  saveLocal();
+}
+
+function addKey(){
+  var input = document.getElementById("inNewKey");
+  var k = (input.value||"").trim().toUpperCase();
+  if(!k){ alert("キーを入力してください。"); return; }
+  if(allKeys().indexOf(k) >= 0){ alert("このキーはすでに一覧にあります。"); return; }
+  extraKeys.push(k);
+  saveLocal();
+  input.value = "";
+  draw();
+}
+
+function draw(){
+  var keys = allKeys();
+  var q = (document.getElementById("inSearch").value||"").toLowerCase();
+  if(q) keys = keys.filter(function(k){ return (k + (memos[k]||"")).toLowerCase().indexOf(q) >= 0; });
+
+  var nStop = 0;
+  allKeys().forEach(function(k){ if(stopped[k]) nStop++; });
+  function box(n,label){ return '<div class="stat"><big>'+n+'</big><small>'+label+'</small></div>'; }
+  document.getElementById("statsArea").innerHTML =
+    box(allKeys().length,"管理中キー") + box(allKeys().length - nStop,"有効") + box(nStop,"停止中");
+
+  var h = '<div style="overflow-x:auto"><table><tr><th>#</th><th>ライセンスキー</th><th>状態</th><th>メモ（お客様名など・この端末のみ）</th><th>操作</th></tr>';
+  keys.forEach(function(k, i){
+    var st = stopped[k];
+    h += '<tr><td style="color:#999">'+(i+1)+'</td>'
+      + '<td><span class="kc">'+k+'</span></td>'
+      + '<td>'+(st ? '<span class="badge b-stop">⛔ 停止中</span>' : '<span class="badge b-ok">✅ 有効</span>')+'</td>'
+      + '<td><input class="memo-in" value="'+String(memos[k]||"").replace(/"/g,"&quot;")+'" onchange="setMemo(\''+k+'\', this.value)" placeholder="例：山田様 8月分未払い"></td>'
+      + '<td>'+(st
+          ? '<button class="ab ab-start" onclick="toggle(\''+k+'\')">▶ 再開</button>'
+          : '<button class="ab ab-stop" onclick="toggle(\''+k+'\')">⏸ 停止</button>')+'</td></tr>';
+  });
+  h += '</table></div>';
+  document.getElementById("tblArea").innerHTML = h;
+  document.getElementById("dirtyBox").style.display = dirty ? "block" : "none";
+}
+
+function downloadJson(){
+  var list = [];
+  allKeys().forEach(function(k){ if(stopped[k]) list.push(k); });
+  var data = {
+    updated: new Date().toISOString().slice(0,10),
+    note: "販売版ライセンスの遠隔制御ファイル。stopped の一覧に入れたキーは利用停止になります。編集は「販売ライセンス遠隔管理.html」を使ってください。",
+    stopped: list
+  };
+  var a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], {type:"application/json"}));
+  a.download = "license_status.json";
+  a.click();
+  dirty = false;
+  draw();
+  showStatus(true, "✅ ダウンロードしました。次にGitHubへアップロードしてください（反映まで最大5分）。");
+}
+
+window.onload = function(){ draw(); loadRemote(); };
+</script>
+</body>
+</html>
