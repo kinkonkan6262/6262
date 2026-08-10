@@ -4629,6 +4629,14 @@ function App({facility,session,onLogout}){
     setAtt({});setJukyu("");
   };
 
+  // 左メニューの並び順どおりに前後の利用者へ切り替える（◀ ▶ ボタン用）
+  const stepUser=dir=>{
+    if(!filtered.length)return;
+    const i=filtered.indexOf(sel);
+    const ni=i<0?(dir>0?0:filtered.length-1):(i+dir+filtered.length)%filtered.length;
+    pick(filtered[ni]);
+  };
+
   const d={sel,planDate,iko,hoshin,long,short,g1t,g1r1,g1r2,g1f,g1to,g2t,g2r1,g2r2,g2f,g2to,f5_1a,f5_1b,f5_2a,f5_2b,f5_3a,f5_3b,f5_4a,f5_4b,f5_5a,f5_5b,mon1,mon2,mj1,mk1,mj2,mk2,kadai,cf,ct,catt,cg1i,cg1k,cg2i,cg2k,cbikou};
   const s={setPlanDate,setIko,setHoshin,setLong,setShort,setG1t,setG1r1,setG1r2,setG1f,setG1to,setG2t,setG2r1,setG2r2,setG2f,setG2to,setF5_1a,setF5_1b,setF5_2a,setF5_2b,setF5_3a,setF5_3b,setF5_4a,setF5_4b,setF5_5a,setF5_5b,setMon1,setMon2,setMj1,setMk1,setMj2,setMk2,setKadai,setCf,setCt,setCatt,setCg1i,setCg1k,setCg2i,setCg2k,setCbikou};
 
@@ -4920,6 +4928,12 @@ function App({facility,session,onLogout}){
       <div style={{padding:"5px 8px",borderTop:"1px solid rgba(255,255,255,0.1)",fontSize:9,color:"rgba(255,255,255,0.3)"}}>{facility&&facility.license_key ? "\u1F510 \u30E9\u30A4\u30BB\u30F3\u30B9\uFF1A"+facility.license_key : (facility&&facility.email)}</div>
     </div>
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+      <div className="np" style={{display:"flex",alignItems:"center",gap:6,background:"#E8F5E9",borderBottom:"1px solid #C8E6C9",padding:"4px 12px",flexShrink:0}}>
+        <span style={{fontSize:12,fontWeight:"bold",color:G,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:220}}>👤 {sel||"利用者を選択してください"}</span>
+        <button onClick={()=>stepUser(-1)} title="前の利用者" style={{background:"#388E3C",color:"#fff",border:"none",borderRadius:4,width:26,height:22,fontSize:11,cursor:"pointer",padding:0,lineHeight:1}}>◀</button>
+        <button onClick={()=>stepUser(1)} title="次の利用者" style={{background:"#388E3C",color:"#fff",border:"none",borderRadius:4,width:26,height:22,fontSize:11,cursor:"pointer",padding:0,lineHeight:1}}>▶</button>
+        {sel&&filtered.indexOf(sel)>=0&&<span style={{fontSize:10,color:"#888"}}>{filtered.indexOf(sel)+1} / {filtered.length}名</span>}
+      </div>
       {conflicts.length>0&&<div className="np" style={{background:"#FFF3E0",borderBottom:"2px solid #FB8C00",padding:"10px 14px",flexShrink:0}}>
         <div style={{fontSize:12.5,fontWeight:"bold",color:"#E65100",marginBottom:6}}>⚠️ 他の職員が先に保存しました</div>
         <div style={{fontSize:11.5,color:"#5D4037",lineHeight:1.7,marginBottom:8}}>
