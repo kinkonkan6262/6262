@@ -1,0 +1,970 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>国保連請求CSV作成ツール（就労継続支援A型・B型）</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/encoding-japanese@2.1.0/dist/encoding.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:"Meiryo",sans-serif;background:#E8EAF6;font-size:13px;}
+textarea,input,button,select{font-family:"Meiryo",sans-serif;font-size:13px;}
+input,select{border:1px solid #C5CAE9;border-radius:4px;padding:4px 6px;background:#fff;}
+input:focus,select:focus{outline:2px solid #7986CB;}
+table{border-collapse:collapse;}
+th,td{border:1px solid #C5CAE9;padding:4px 6px;}
+th{background:#E8EAF6;font-weight:bold;white-space:nowrap;}
+.card{background:#fff;border:1px solid #C5CAE9;border-radius:8px;padding:14px;margin-bottom:14px;}
+.note{background:#FFF8E1;border:1px solid #FFE082;border-radius:6px;padding:8px 10px;font-size:12px;line-height:1.7;}
+.warn{background:#FFEBEE;border:1px solid #FFCDD2;border-radius:6px;padding:8px 10px;font-size:12px;line-height:1.7;color:#B71C1C;}
+.ok{background:#E8F5E9;border:1px solid #A5D6A7;border-radius:6px;padding:8px 10px;font-size:12px;line-height:1.7;color:#1B5E20;}
+.chip{display:inline-block;background:#FFE0B2;color:#E65100;border-radius:10px;padding:0 8px;font-size:11px;margin-left:4px;}
+button.tab{padding:8px 14px;border:none;border-radius:8px 8px 0 0;cursor:pointer;font-weight:bold;background:#C5CAE9;color:#3949AB;}
+button.tab.on{background:#3949AB;color:#fff;}
+button.act{padding:6px 14px;border:none;border-radius:6px;cursor:pointer;font-weight:bold;color:#fff;}
+button.act:disabled{opacity:.45;cursor:not-allowed;}
+button.mini{padding:2px 8px;border:1px solid #9FA8DA;border-radius:4px;cursor:pointer;background:#fff;color:#3949AB;font-size:12px;}
+.mono{font-family:Consolas,Menlo,monospace;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const {useState,useEffect,useMemo,useRef}=React;
+
+/* ============================================================
+   国保連請求CSV作成ツール（就労継続支援A型・B型）v1.0
+   - J611 サービス提供実績記録票CSV：取込システムのエラーリスト診断で
+     実測確定済みレイアウト（2026-07 ErrFile解析・B型様式1701）を採用
+   - J121 介護給付費等明細書CSV：実際に取込成功した見本
+     (J121_202607_final.CSV) と同一のコントロールレコード構造を採用
+   - 加算マスタは令和6年度報酬改定ベース。単位数・サービスコードは
+     必ず最新の「サービスコード表・単位数表」で確認して編集すること
+   ============================================================ */
+
+const LSP="khcsv1_";
+const load=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(LSP+k)||"null");return v==null?d:v;}catch(e){return d;}};
+const save=(k,v)=>{try{localStorage.setItem(LSP+k,JSON.stringify(v));}catch(e){}};
+
+const monthKey=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");
+const reiwaYM=ym=>{const [y,m]=ym.split("-").map(Number);const r=y-2018;return "令和"+r+"年"+m+"月";};
+const WD=["日","月","火","水","木","金","土"];
+
+/* 全角カナ→半角カナ変換（明細書のカナ欄用） */
+const Z2H={"ガ":"ｶﾞ","ギ":"ｷﾞ","グ":"ｸﾞ","ゲ":"ｹﾞ","ゴ":"ｺﾞ","ザ":"ｻﾞ","ジ":"ｼﾞ","ズ":"ｽﾞ","ゼ":"ｾﾞ","ゾ":"ｿﾞ","ダ":"ﾀﾞ","ヂ":"ﾁﾞ","ヅ":"ﾂﾞ","デ":"ﾃﾞ","ド":"ﾄﾞ","バ":"ﾊﾞ","ビ":"ﾋﾞ","ブ":"ﾌﾞ","ベ":"ﾍﾞ","ボ":"ﾎﾞ","パ":"ﾊﾟ","ピ":"ﾋﾟ","プ":"ﾌﾟ","ペ":"ﾍﾟ","ポ":"ﾎﾟ","ヴ":"ｳﾞ","ア":"ｱ","イ":"ｲ","ウ":"ｳ","エ":"ｴ","オ":"ｵ","カ":"ｶ","キ":"ｷ","ク":"ｸ","ケ":"ｹ","コ":"ｺ","サ":"ｻ","シ":"ｼ","ス":"ｽ","セ":"ｾ","ソ":"ｿ","タ":"ﾀ","チ":"ﾁ","ツ":"ﾂ","テ":"ﾃ","ト":"ﾄ","ナ":"ﾅ","ニ":"ﾆ","ヌ":"ﾇ","ネ":"ﾈ","ノ":"ﾉ","ハ":"ﾊ","ヒ":"ﾋ","フ":"ﾌ","ヘ":"ﾍ","ホ":"ﾎ","マ":"ﾏ","ミ":"ﾐ","ム":"ﾑ","メ":"ﾒ","モ":"ﾓ","ヤ":"ﾔ","ユ":"ﾕ","ヨ":"ﾖ","ラ":"ﾗ","リ":"ﾘ","ル":"ﾙ","レ":"ﾚ","ロ":"ﾛ","ワ":"ﾜ","ヲ":"ｦ","ン":"ﾝ","ァ":"ｧ","ィ":"ｨ","ゥ":"ｩ","ェ":"ｪ","ォ":"ｫ","ッ":"ｯ","ャ":"ｬ","ュ":"ｭ","ョ":"ｮ","ー":"ｰ","　":" ","・":"･"};
+const toHankaku=s=>String(s||"").split("").map(ch=>{
+  if(Z2H[ch])return Z2H[ch];
+  const c=ch.charCodeAt(0);
+  if(c>=0x3041&&c<=0x3096){const kata=String.fromCharCode(c+0x60);return Z2H[kata]||kata;}
+  return ch;
+}).join("");
+
+/* 地域区分ごとの単位数単価（円×100）。就労系（人件費割合区分）目安値。
+   ※必ず貴事業所に適用される単価を告示で確認し、必要なら手入力で上書き */
+const CHIIKI=[
+ {code:"01",label:"1級地",tanka:1140},{code:"02",label:"2級地",tanka:1112},
+ {code:"03",label:"3級地",tanka:1084},{code:"04",label:"4級地",tanka:1070},
+ {code:"05",label:"5級地",tanka:1070},{code:"06",label:"6級地",tanka:1056},
+ {code:"07",label:"7級地",tanka:1042},{code:"08",label:"その他",tanka:1000},
+];
+
+/* 算定方法（回数の数え方） */
+const PERS=[
+ ["日","利用日数（通所+施設外）"],["食","食事提供 回数"],["欠","欠席時対応 回数"],
+ ["送往","送迎（往）回数"],["送復","送迎（復）回数"],["送計","送迎（往復合計）回数"],
+ ["医連","医療連携チェック日数"],["体験","体験利用チェック日数"],["地協","地域協働チェック日数"],
+ ["集中","集中的支援チェック日数"],["緊受","緊急時受入チェック日数"],["定超","定員超過特例チェック日数"],
+ ["訪1","訪問支援(1h未満)日数"],["訪2","訪問支援(1h以上)日数"],["在宅","在宅支援日数"],
+ ["月1","利用があれば月1回"],["回","手入力のみ"],["率","対象単位数×率%（処遇改善等）"],
+];
+const PER_LABEL={};PERS.forEach(p=>PER_LABEL[p[0]]=p[1]);
+
+/* ====== 加算マスタ既定値（令和6年度報酬改定ベース／単位数は要確認） ======
+   c:サービスコード u:単位数 p:算定方法 e:有効 m:減算 pct:率(%) */
+const MINUS_COMMON=[
+ {c:"",n:"【減算】定員超過利用減算（単位をマイナス入力）",u:"",p:"回",e:false,m:true},
+ {c:"",n:"【減算】サービス管理責任者欠如減算（マイナス入力）",u:"",p:"回",e:false,m:true},
+ {c:"",n:"【減算】個別支援計画未作成減算（マイナス入力）",u:"",p:"回",e:false,m:true},
+ {c:"",n:"【減算】身体拘束廃止未実施減算（マイナス入力）",u:"",p:"回",e:false,m:true},
+ {c:"",n:"【減算】虐待防止措置未実施減算（マイナス入力）",u:"",p:"回",e:false,m:true},
+ {c:"",n:"【減算】業務継続計画未策定減算（R6新設・マイナス入力）",u:"",p:"回",e:false,m:true},
+ {c:"",n:"【減算】情報公表未報告減算（R6新設・マイナス入力）",u:"",p:"回",e:false,m:true},
+];
+const KASAN_COMMON=[
+ {c:"",n:"福祉専門職員配置等加算Ⅰ",u:"15",p:"日",e:false},
+ {c:"",n:"福祉専門職員配置等加算Ⅱ",u:"10",p:"日",e:false},
+ {c:"",n:"視覚・聴覚言語障害者支援体制加算",u:"41",p:"日",e:false},
+ {c:"",n:"高次脳機能障害者支援体制加算（R6新設）",u:"41",p:"日",e:false},
+ {c:"",n:"初期加算（利用開始30日以内・回数手入力）",u:"30",p:"回",e:false},
+ {c:"",n:"訪問支援特別加算Ⅰ（1時間未満）",u:"187",p:"訪1",e:false},
+ {c:"",n:"訪問支援特別加算Ⅱ（1時間以上）",u:"280",p:"訪2",e:false},
+ {c:"",n:"医療連携体制加算Ⅰ",u:"32",p:"医連",e:false},
+ {c:"",n:"医療連携体制加算Ⅱ",u:"63",p:"医連",e:false},
+ {c:"",n:"医療連携体制加算Ⅲ",u:"125",p:"医連",e:false},
+ {c:"",n:"医療連携体制加算Ⅳ（対象1人）",u:"800",p:"医連",e:false},
+ {c:"",n:"医療連携体制加算Ⅴ",u:"500",p:"医連",e:false},
+ {c:"",n:"体験利用支援加算Ⅰ",u:"500",p:"体験",e:false},
+ {c:"",n:"体験利用支援加算Ⅱ",u:"250",p:"体験",e:false},
+ {c:"",n:"在宅時生活支援サービス加算",u:"300",p:"在宅",e:false},
+ {c:"",n:"社会生活支援特別加算",u:"480",p:"日",e:false},
+ {c:"",n:"利用者負担上限額管理加算",u:"150",p:"月1",e:false},
+ {c:"",n:"送迎加算Ⅱ（往）",u:"10",p:"送往",e:false},
+ {c:"",n:"送迎加算Ⅱ（復）",u:"10",p:"送復",e:false},
+];
+const DEF46=[
+ {c:"462998",n:"基本報酬（例：就継B型サービス費 ※コード表で自事業所の区分を確認）",u:"738",p:"日",e:true},
+ {c:"",n:"福祉・介護職員等処遇改善加算（率計算・届出区分の率%を入力）",u:"",p:"率",pct:"",e:false},
+ {c:"465255",n:"目標工賃達成指導員配置加算",u:"45",p:"日",e:false},
+ {c:"465087",n:"目標工賃達成加算（R6新設）",u:"10",p:"日",e:false},
+ {c:"465815",n:"重度者支援体制加算Ⅱ",u:"28",p:"日",e:false},
+ {c:"468036",n:"福祉専門職員配置等加算Ⅲ",u:"6",p:"日",e:false},
+ {c:"463003",n:"食事提供体制加算",u:"30",p:"食",e:false},
+ {c:"466001",n:"欠席時対応加算",u:"94",p:"欠",e:false},
+ {c:"468590",n:"送迎加算Ⅰ（往）",u:"21",p:"送往",e:false},
+ {c:"468590",n:"送迎加算Ⅰ（復）",u:"21",p:"送復",e:false},
+ {c:"468592",n:"送迎加算Ⅰ同一敷地（往復）",u:"15",p:"月1",e:false},
+ {c:"",n:"地域協働加算（R6拡充）",u:"30",p:"地協",e:false},
+ {c:"",n:"集中的支援加算（R6新設）",u:"1000",p:"集中",e:false},
+ {c:"",n:"緊急時受入加算",u:"",p:"緊受",e:false},
+ {c:"",n:"ピアサポート実施加算",u:"100",p:"月1",e:false},
+ {c:"465270",n:"就労移行連携加算",u:"1000",p:"月1",e:false},
+ {c:"",n:"就労移行支援体制加算（定員・区分別単位×移行者数を手入力）",u:"",p:"回",e:false},
+ ...KASAN_COMMON,...MINUS_COMMON,
+];
+const DEF45=[
+ {c:"",n:"基本報酬（例：就継A型サービス費 ※スコア・定員区分をコード表で確認）",u:"724",p:"日",e:true},
+ {c:"",n:"福祉・介護職員等処遇改善加算（率計算・届出区分の率%を入力）",u:"",p:"率",pct:"",e:false},
+ {c:"",n:"賃金向上達成指導員配置加算（定員20以下70／21-40:43／41-60:26／61-80:19／81-:15）",u:"70",p:"日",e:false},
+ {c:"",n:"重度者支援体制加算Ⅰ",u:"56",p:"日",e:false},
+ {c:"",n:"重度者支援体制加算Ⅱ",u:"28",p:"日",e:false},
+ {c:"",n:"福祉専門職員配置等加算Ⅲ",u:"6",p:"日",e:false},
+ {c:"",n:"食事提供体制加算",u:"30",p:"食",e:false},
+ {c:"",n:"欠席時対応加算",u:"94",p:"欠",e:false},
+ {c:"",n:"送迎加算Ⅰ（往）",u:"21",p:"送往",e:false},
+ {c:"",n:"送迎加算Ⅰ（復）",u:"21",p:"送復",e:false},
+ {c:"",n:"送迎加算Ⅰ同一敷地（往復）",u:"15",p:"月1",e:false},
+ {c:"",n:"就労移行支援体制加算（定員・区分別単位×移行者数を手入力）",u:"",p:"回",e:false},
+ {c:"",n:"【減算】スコア（自己評価結果）未公表減算（マイナス入力）",u:"",p:"回",e:false,m:true},
+ ...KASAN_COMMON,...MINUS_COMMON,
+];
+const withIds=list=>list.map((it,i)=>({id:i+1,...it}));
+
+/* 保存済みマスタに新既定行をマージ（名称が無いものだけ追加） */
+const mergeItems=(saved,defs)=>{
+  const d=withIds(defs);
+  if(!saved||!Array.isArray(saved)||saved.length===0)return d;
+  const names=new Set(saved.map(i=>i&&i.n));
+  let maxId=saved.reduce((a,i)=>Math.max(a,(i&&i.id)||0),0);
+  const add=d.filter(x=>!names.has(x.n)).map(x=>({...x,id:++maxId}));
+  return add.length?[...saved,...add]:saved;
+};
+
+/* ====== 月次集計（実績→回数） ====== */
+function calcMonth(md){
+  let use=0,out=0,abs=0,kasan=0,meal=0,s1=0,s2=0,iren=0,taiken=0,chiiki=0,kinkyu=0,shuchu=0,teiin=0,hou1=0,hou2=0,zai=0;
+  Object.values(md||{}).forEach(v=>{
+    if(!v||typeof v!=="object")return;
+    if(v.st==="通")use++;
+    if(v.st==="外"){use++;out++;}
+    if(v.st==="欠")abs++;
+    if(v.st==="加")kasan++;
+    if(v.st==="在")zai++;
+    const on=(v.st==="通"||v.st==="外");
+    if(on){
+      if(v.meal)meal++; if(v.s1)s1++; if(v.s2)s2++;
+      if(v.iren)iren++; if(v.taiken)taiken++; if(v.chiiki)chiiki++;
+      if(v.kinkyu)kinkyu++; if(v.shuchu)shuchu++; if(v.teiin)teiin++;
+    }
+    if(v.hou1)hou1++; if(v.hou2)hou2++;
+  });
+  return {use,out,abs,kasan,meal,s1,s2,iren,taiken,chiiki,kinkyu,shuchu,teiin,hou1,hou2,zai};
+}
+const autoCount=(c,p)=>{
+  if(p==="日")return c.use; if(p==="食")return c.meal; if(p==="欠")return c.kasan;
+  if(p==="送往")return c.s1; if(p==="送復")return c.s2; if(p==="送計")return c.s1+c.s2;
+  if(p==="医連")return c.iren; if(p==="体験")return c.taiken; if(p==="地協")return c.chiiki;
+  if(p==="集中")return c.shuchu; if(p==="緊受")return c.kinkyu; if(p==="定超")return c.teiin;
+  if(p==="訪1")return c.hou1; if(p==="訪2")return c.hou2; if(p==="在宅")return c.zai;
+  if(p==="月1")return c.use>0?1:0;
+  return 0; /* 回・率 は手入力／別計算 */
+};
+
+/* ====== Shift-JIS ダウンロード ====== */
+function sjisDownload(text,filename){
+  let blob,sjisOk=true;
+  try{
+    if(typeof Encoding!=="undefined"&&typeof Encoding.convert==="function"){
+      const sjis=Encoding.convert(Encoding.stringToCode(text),{to:"SJIS",from:"UNICODE"});
+      blob=new Blob([new Uint8Array(sjis)],{type:"text/plain;charset=shift_jis"});
+    }else{sjisOk=false;blob=new Blob([text],{type:"text/plain;charset=utf-8"});}
+  }catch(e){sjisOk=false;blob=new Blob([text],{type:"text/plain;charset=utf-8"});}
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");a.href=url;a.download=filename;a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),3000);
+  return sjisOk;
+}
+const esc=v=>'"'+String(v==null?"":v).replace(/"/g,'""')+'"';
+
+/* ====== 請求計算 ====== */
+function calcBill(user,att,items,counts,office){
+  const c=calcMonth(att);
+  const rows=[];let base=0;
+  const rateItems=[];
+  items.filter(i=>i.e).forEach(it=>{
+    if(it.p==="率"){rateItems.push(it);return;}
+    const ov=(counts||{})[it.id];
+    const cnt=(ov!==undefined&&ov!=="")?(parseInt(ov)||0):autoCount(c,it.p);
+    if(!cnt)return;
+    const unit=parseInt(it.u)||0;if(!unit)return;
+    const svc=unit*cnt;base+=svc;
+    rows.push({id:it.id,code:String(it.c||"").trim(),name:it.n,unit,cnt,svc});
+  });
+  rateItems.forEach(it=>{
+    const pct=parseFloat(it.pct)||0;if(!pct||base<=0)return;
+    const svc=Math.round(base*pct/100);if(!svc)return;
+    rows.push({id:it.id,code:String(it.c||"").trim(),name:it.n,unit:svc,cnt:1,svc,isRate:true,pct});
+  });
+  const totalUnits=rows.reduce((a,r)=>a+r.svc,0);
+  const tanka=parseInt(office.tanka)||1000;
+  const totalCost=Math.floor(totalUnits*tanka/100);
+  const rate=parseInt(user.rate||office.defaultRate||"900")||900;
+  const upper=parseInt(user.limit||"0")||0;
+  const rawBurden=Math.floor(totalCost*(1000-rate)/1000);
+  const determined=upper>0?Math.min(rawBurden,upper):rawBurden;
+  const claim=totalCost-determined;
+  return {c,rows,totalUnits,tanka,totalCost,rate,upper,rawBurden,determined,claim};
+}
+
+/* ====== 共通UIパーツ ====== */
+function Sec({title,children}){return <div className="card"><div style={{fontWeight:"bold",color:"#283593",marginBottom:8,fontSize:14}}>{title}</div>{children}</div>;}
+function MonthNav({ym,setYm}){
+  const mv=d=>{const [y,m]=ym.split("-").map(Number);setYm(monthKey(new Date(y,m-1+d,1)));};
+  return <div style={{display:"flex",alignItems:"center",gap:6}}>
+    <button className="mini" onClick={()=>mv(-1)}>◀ 前月</button>
+    <b style={{minWidth:130,textAlign:"center",color:"#283593"}}>{reiwaYM(ym)}（{ym}）</b>
+    <button className="mini" onClick={()=>mv(1)}>翌月 ▶</button>
+  </div>;
+}
+
+/* ============================ App ============================ */
+function App(){
+  const [tab,setTab]=useState("office");
+  const [office,setOffice]=useState(()=>load("office",{svcType:"46",officeNo:"",officeName:"",prefNo:"45",cityNo:"",chiikiCode:"08",tanka:1000,mediaType:"7",youshiki:"",defaultRate:"900",defIn:"1000",defOut:"1500"}));
+  const [users,setUsers]=useState(()=>load("users",[]));
+  const [att,setAtt]=useState(()=>load("att",{}));           // att[userId][ym][day]
+  const [items45,setItems45]=useState(()=>mergeItems(load("items45",null),DEF45));
+  const [items46,setItems46]=useState(()=>mergeItems(load("items46",null),DEF46));
+  const [counts,setCounts]=useState(()=>load("counts",{}));   // counts[ym][userId][itemId]
+  const [ym,setYm]=useState(()=>monthKey(new Date()));
+
+  useEffect(()=>save("office",office),[office]);
+  useEffect(()=>save("users",users),[users]);
+  useEffect(()=>save("att",att),[att]);
+  useEffect(()=>save("items45",items45),[items45]);
+  useEffect(()=>save("items46",items46),[items46]);
+  useEffect(()=>save("counts",counts),[counts]);
+
+  const isA=office.svcType==="45";
+  const items=isA?items45:items46;
+  const setItems=isA?setItems45:setItems46;
+  const youshiki=(office.youshiki||"").trim()||(isA?"1601":"1701");
+
+  const upOffice=(k,v)=>setOffice(p=>({...p,[k]:v}));
+  const setDay=(uid,day,patch)=>setAtt(p=>{
+    const u={...(p[uid]||{})};const m={...(u[ym]||{})};
+    m[day]={...(m[day]||{}),...patch};
+    if(patch.st==="")delete m[day];
+    u[ym]=m;return {...p,[uid]:u};
+  });
+  const getMonth=uid=>((att[uid]||{})[ym])||{};
+  const setCnt=(uid,itemId,v)=>setCounts(p=>{
+    const m={...(p[ym]||{})};m[uid]={...(m[uid]||{}),[itemId]:v};return {...p,[ym]:m};
+  });
+  const getCnts=uid=>((counts[ym]||{})[uid])||{};
+
+  /* ---------- CSV生成：J121 明細書 ---------- */
+  const buildJ121=()=>{
+    const [y2,m2]=ym.split("-").map(Number);
+    const ymStr=String(y2)+String(m2).padStart(2,"0");
+    const offNo=(office.officeNo||"").trim();
+    const warnings=[];const errors=[];
+    if(!offNo)errors.push("事業所番号が未設定です（設定タブ）");
+    if(!(office.cityNo||"").trim())warnings.push("既定の市町村番号が未設定です（利用者ごとに設定されていれば問題ありません）");
+    const prefNo=(office.prefNo||"").trim().padStart(2,"0");
+    if(!/^[0-9]{2}$/.test(prefNo))errors.push("都道府県番号（2桁）が正しくありません");
+    const tanka=parseInt(office.tanka)||0;
+    if(!tanka)errors.push("単位数単価が未設定です");
+    const svcType=office.svcType;
+    const chiikiCode=(office.chiikiCode||"08").padStart(2,"0");
+    const offNo10=offNo.length>=10?offNo:offNo.padEnd(10," ");
+    let dataRecs=[];let recSeq=2;let targets=0;const perUser=[];
+    users.forEach(u=>{
+      const md=getMonth(u.id);
+      const bill=calcBill(u,md,items,getCnts(u.id),office);
+      if(bill.c.use<=0||bill.totalUnits<=0)return;
+      const jukyuRaw=(u.jukyu||"").trim();
+      if(!jukyuRaw){warnings.push(u.name+"さん: 受給者証番号が未入力のためCSVに含めません");return;}
+      if(!/^[0-9]{1,10}$/.test(jukyuRaw))warnings.push(u.name+"さん: 受給者証番号「"+jukyuRaw+"」の桁数・文字に誤りがある可能性");
+      targets++;
+      const jukyu=jukyuRaw.padStart(10,"0");
+      const cityNo=((u.cityNo||"").trim()||office.cityNo||"").trim();
+      if(!/^[0-9]{1,6}$/.test(cityNo))warnings.push(u.name+"さん: 市町村番号「"+cityNo+"」が6桁数字ではありません");
+      const cityNo6=cityNo.padStart(6,"0");
+      let kana=toHankaku((u.kana||"").trim()).substring(0,25);
+      if(!kana)warnings.push(u.name+"さん: フリガナが未入力です");
+      const rate=bill.rate;
+      if(rate<500||rate>1000)warnings.push(u.name+"さん: 給付率("+rate+")が通常範囲(500〜1000)外です");
+      bill.rows.forEach(r=>{
+        if(!/^[0-9]{6}$/.test(r.code))warnings.push(u.name+"さん: 「"+r.name+"」のサービスコードが6桁数字ではありません（"+(r.code||"未設定")+"）");
+        else if(r.code.substring(0,2)!==svcType)warnings.push(u.name+"さん: 「"+r.name+"」のコード("+r.code+")がサービス種類"+svcType+"と一致しません");
+      });
+      if(bill.determined<0||bill.claim<0)warnings.push(u.name+"さん: 負担額または請求額がマイナスです。単価・給付率・上限額を確認してください");
+      const usedDays=Object.keys(md).map(Number).filter(d=>md[d]&&(md[d].st==="通"||md[d].st==="外")).sort((a,b)=>a-b);
+      const firstDay=usedDays[0]||1;
+      const startDate=ymStr+String(firstDay).padStart(2,"0");
+      /* 01:基本情報 */
+      const rec01=["J121","01",ymStr,cityNo6,offNo10,jukyu,"",kana,"",chiikiCode,
+        bill.upper>0?String(bill.upper):"","","","","",
+        String(bill.c.use),"","","",String(bill.totalUnits),String(bill.totalCost),
+        "","","","","",String(bill.determined),String(bill.claim),"","","",""].map(esc).join(",");
+      dataRecs.push("2,"+recSeq+","+rec01);recSeq++;
+      /* 02:日数情報 */
+      const rec02=["J121","02",ymStr,cityNo6,offNo10,jukyu,svcType,startDate,"",String(bill.c.use),"",""].map(esc).join(",");
+      dataRecs.push("2,"+recSeq+","+rec02);recSeq++;
+      /* 03:明細情報 */
+      bill.rows.forEach((r,idx)=>{
+        const iCost=Math.floor(r.svc*tanka/100);
+        const iKyufu=Math.floor(iCost*rate/1000);
+        const rec03=["J121","03",ymStr,cityNo6,offNo10,jukyu,svcType,
+          String(idx+1).padStart(2,"0"),r.code.padStart(6,"0"),
+          String(r.unit),String(r.cnt),String(r.svc),"",
+          String(tanka).padStart(4,"0"),String(iCost),"","",
+          String(rate).padStart(4,"0"),String(iKyufu),
+          "","","","","","",""].map(esc).join(",");
+        dataRecs.push("2,"+recSeq+","+rec03);recSeq++;
+      });
+      /* 04:集計情報 */
+      const rec04=["J121","04",ymStr,cityNo6,offNo10,jukyu,svcType,"1","","",
+        String(bill.totalUnits),String(tanka).padStart(4,"0"),String(bill.totalCost),String(bill.rawBurden),
+        "",String(bill.determined),"",String(bill.determined),String(bill.claim),"","",""].map(esc).join(",");
+      dataRecs.push("2,"+recSeq+","+rec04);recSeq++;
+      perUser.push({user:u,bill});
+    });
+    if(dataRecs.length===0)errors.push("出力対象がありません（受給者証番号・実績・有効な加算設定を確認）");
+    /* コントロールレコード：実際に取込できた見本(J121_202607_final.CSV)と同一構造
+       1,1,0,<データ件数>,J12,0,<事業所番号>,<都道府県>,11,<提供年月>,0 （全11項目） */
+    const ctrl=[1,1,0,dataRecs.length,"J12",0,offNo10,prefNo,"11",ymStr,0].join(",");
+    const end="3,"+recSeq;
+    const text=[ctrl,...dataRecs,end].join("\r\n")+"\r\n";
+    return {text,warnings,errors,targets,dataCount:dataRecs.length,ymStr,perUser,filename:"J121_"+ymStr+".CSV"};
+  };
+
+  /* ---------- CSV生成：J611 実績記録票 ---------- */
+  const buildJ611=()=>{
+    const [y2,m2]=ym.split("-").map(Number);
+    const ymStr=String(y2)+String(m2).padStart(2,"0");
+    const offNo=(office.officeNo||"").trim();
+    const warnings=[];const errors=[];
+    if(!offNo)errors.push("事業所番号が未設定です（設定タブ）");
+    const nd=new Date(y2,m2,0).getDate();
+    const REC01_LEN=174,REC02_LEN=115;
+    const ST={"通":"1","外":"2","欠":"3","加":"3"};
+    const fmtT=t=>{const d=String(t||"").replace(/[^0-9]/g,"");return d?d.padStart(4,"0"):"";};
+    const memoSafe=m=>String(m||"").replace(/,/g,"、").replace(/[\r\n"]/g," ").trim();
+    let dataRecs=[];let recSeq=2;let targets=0;
+    users.forEach(u=>{
+      const jukyuRaw=(u.jukyu||"").trim();
+      if(!jukyuRaw)return;
+      if(!/^[0-9]{1,10}$/.test(jukyuRaw))warnings.push(u.name+"さん: 受給者証番号「"+jukyuRaw+"」の桁数・文字に誤りがある可能性");
+      const jukyu=jukyuRaw.padStart(10,"0");
+      const cityNo=((u.cityNo||"").trim()||office.cityNo||"").trim();
+      if(!cityNo){warnings.push(u.name+"さん: 市町村番号が未設定のためCSVに含めません");return;}
+      const cityNo6=cityNo.padStart(6,"0");
+      const md=getMonth(u.id);
+      const days=[];
+      for(let d=1;d<=nd;d++){
+        const v=md[d];if(!v||!v.st)continue;
+        const st=ST[v.st];if(!st)continue;
+        days.push({d,v,st});
+      }
+      if(days.length===0)return;
+      targets++;
+      const useDays=days.filter(e=>e.st!=="3").length;
+      const sougei=days.reduce((a,e)=>a+(e.st!=="3"&&e.v.s1?1:0)+(e.st!=="3"&&e.v.s2?1:0),0);
+      const meals=days.filter(e=>e.st!=="3"&&e.v.meal).length;
+      const outDays=days.filter(e=>e.st==="2").length;
+      const cnt=k=>days.filter(e=>e.st!=="3"&&e.v[k]).length;
+      const houC1=days.filter(e=>e.v.hou1).length,houC2=days.filter(e=>e.v.hou2).length;
+      const irenC=cnt("iren"),taikenC=cnt("taiken"),chiikiC=cnt("chiiki"),
+            kinkyuC=cnt("kinkyu"),shuchuC=cnt("shuchu"),teiinC=cnt("teiin");
+      const mkRec=recType=>{
+        const f=new Array(recType==="01"?REC01_LEN:REC02_LEN).fill("");
+        f[0]="2";f[2]="J611";f[3]=recType;f[4]=ymStr;f[5]=cityNo6;f[6]=offNo;f[7]=jukyu;f[8]=youshiki;
+        return f;
+      };
+      const pushRec=f=>{
+        f[f.length-1]="0";
+        dataRecs.push(f[0]+","+recSeq+","+f.slice(2).map(esc).join(","));recSeq++;
+      };
+      /* 基本情報(01)：位置は1始まり表記（実測確定済み） */
+      const b=mkRec("01");
+      if(sougei)b[35]=String(sougei);
+      b[38]=String(useDays);
+      if(meals)b[46]=String(meals);
+      if(houC1)b[52]=String(houC1);
+      if(houC2)b[53]=String(houC2);
+      if(outDays)b[54]=String(outDays);
+      if(irenC)b[118]=String(irenC);
+      if(taikenC)b[126]=String(taikenC);
+      if(teiinC)b[127]=String(teiinC);
+      if(chiikiC)b[153]=String(chiikiC);
+      if(shuchuC)b[168]=String(shuchuC);
+      if(kinkyuC)b[169]=String(kinkyuC);
+      pushRec(b);
+      /* 日別情報(02) */
+      days.forEach((e,i)=>{
+        const f=mkRec("02");
+        f[9]=String(i+1);
+        f[10]=String(e.d).padStart(2,"0");
+        f[11]=e.st;
+        if(e.st!=="3"){
+          const inT=fmtT(e.v.in),outT=fmtT(e.v.out);
+          if(!inT||!outT)warnings.push(u.name+"さん "+m2+"月"+e.d+"日: 開始または終了時間が未入力です");
+          else if(Number(outT)<=Number(inT))warnings.push(u.name+"さん "+m2+"月"+e.d+"日: 終了("+outT+")が開始("+inT+")以前になっています");
+          f[15]=inT;f[16]=outT;
+          if(e.v.s1)f[22]="1";
+          if(e.v.s2)f[23]="1";
+          const numOnly=x=>String(x==null?"":x).replace(/[^0-9]/g,"");
+          if(e.v.hou1)f[28]=numOnly(e.v.hou1);
+          if(e.v.hou2)f[29]=numOnly(e.v.hou2);
+          if(e.st==="2")f[30]="1";
+          if(e.v.meal)f[33]="1";
+          if(e.v.iren)f[75]="1";
+          if(e.v.taiken)f[84]="1";
+          if(e.v.teiin)f[85]="1";
+          if(e.v.chiiki)f[97]="1";
+          if(e.v.shuchu)f[108]="1";
+          if(e.v.kinkyu)f[109]="1";
+        }
+        const memo=memoSafe(e.v.memo);
+        if(memo)f[36]=memo;
+        pushRec(f);
+      });
+    });
+    if(dataRecs.length===0)errors.push("出力対象がありません（受給者証番号・市町村番号・実績入力を確認）");
+    /* コントロール：1,1,0,件数,J61,0,事業所番号,0,1,年月,0（実測確定済み） */
+    const ctrl=[1,1,0,dataRecs.length,"J61",0,offNo,0,1,ymStr,0].join(",");
+    const end="3,"+recSeq;
+    const text=[ctrl,...dataRecs,end].join("\r\n")+"\r\n";
+    return {text,warnings,errors,targets,dataCount:dataRecs.length,ymStr,filename:"実績記録票_"+ymStr+"_取込用.csv"};
+  };
+
+  const doDownload=builder=>{
+    const r=builder();
+    if(r.errors.length){alert("❌ 出力できません：\n\n・"+r.errors.join("\n・"));return;}
+    if(r.warnings.length){
+      const shown=r.warnings.slice(0,15);
+      if(r.warnings.length>15)shown.push("…ほか"+(r.warnings.length-15)+"件");
+      if(!window.confirm("⚠️ 電子請求前の確認をお願いします。以下の疑問点があります。\n\n・"+shown.join("\n・")+"\n\nこのままCSVを出力しますか？"))return;
+    }
+    const sjisOk=sjisDownload(r.text,r.filename);
+    alert("✅ CSVを出力しました！\n\n対象利用者: "+r.targets+"名\nデータレコード数: "+r.dataCount+"件\nファイル名: "+r.filename+(sjisOk?"":"\n\n⚠️ Shift-JISライブラリ未読込のためUTF-8で出力されました。オンライン環境で再出力してください。")+"\n\n⚠️ このファイルはExcelで開かないでください（0落ち・項目数変化の原因）。中身の確認は「CSV検査」タブへドロップしてください。");
+  };
+
+  return <div style={{maxWidth:1200,margin:"0 auto",padding:14}}>
+    <div style={{background:"#3949AB",color:"#fff",borderRadius:8,padding:"12px 16px",marginBottom:10}}>
+      <div style={{fontSize:17,fontWeight:"bold"}}>🏛️ 国保連請求CSV作成ツール <span style={{fontSize:13}}>就労継続支援{isA?"A型":"B型"}（令和6年度報酬改定対応）v1.0</span></div>
+      <div style={{fontSize:11,opacity:.9,marginTop:2}}>サービス提供実績記録票CSV（J611・実測検証済みレイアウト）／介護給付費等明細書CSV（J121）を生成します</div>
+    </div>
+    <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+      {[["office","🏢 設定"],["users","👥 利用者"],["att","📅 実績入力"],["items","💴 加算マスタ"],["out","📤 請求・CSV出力"],["check","🔍 CSV検査"],["data","💾 データ管理"]].map(([k,l])=>
+        <button key={k} className={"tab"+(tab===k?" on":"")} onClick={()=>setTab(k)}>{l}</button>)}
+    </div>
+    <div style={{background:"#fff",border:"1px solid #C5CAE9",borderRadius:"0 8px 8px 8px",padding:14}}>
+      {tab==="office"&&<OfficeTab office={office} up={upOffice}/>}
+      {tab==="users"&&<UsersTab users={users} setUsers={setUsers} office={office}/>}
+      {tab==="att"&&<AttTab users={users} ym={ym} setYm={setYm} getMonth={getMonth} setDay={setDay} office={office}/>}
+      {tab==="items"&&<ItemsTab items={items} setItems={setItems} isA={isA}/>}
+      {tab==="out"&&<OutTab users={users} ym={ym} setYm={setYm} getMonth={getMonth} items={items} getCnts={getCnts} setCnt={setCnt} office={office} buildJ121={buildJ121} buildJ611={buildJ611} doDownload={doDownload} youshiki={youshiki}/>}
+      {tab==="check"&&<CheckTab/>}
+      {tab==="data"&&<DataTab all={{office,users,att,items45,items46,counts}} restore={d=>{
+        if(d.office)setOffice(d.office);if(d.users)setUsers(d.users);if(d.att)setAtt(d.att);
+        if(d.items45)setItems45(d.items45);if(d.items46)setItems46(d.items46);if(d.counts)setCounts(d.counts);
+      }}/>}
+    </div>
+    <div className="note" style={{marginTop:10}}>
+      ⚠️ <b>重要：</b>単位数・サービスコードの既定値は令和6年度報酬改定ベースの<b>参考値</b>です。請求前に必ず最新の「障害福祉サービス費等の報酬算定構造・サービスコード表」と貴事業所の届出内容で確認し、加算マスタで修正してください。
+      B型（様式{"1701"}）は実際の取込成功実績のあるレイアウトです。<b>A型で初めて使用する際は、必ず電子請求受付システムのテスト（到達確認）で通過を確認してから本番提出してください。</b>
+      提出には電子証明書が必要です。生成CSVはShift-JIS・CRLF形式です。
+    </div>
+  </div>;
+}
+
+/* ---------------- 設定タブ ---------------- */
+function OfficeTab({office,up}){
+  const isA=office.svcType==="45";
+  const F=({label,k,w,ph,maxLength})=><label style={{display:"inline-flex",flexDirection:"column",gap:2,marginRight:14,marginBottom:10}}>
+    <span style={{fontSize:11,color:"#5C6BC0"}}>{label}</span>
+    <input style={{width:w||140}} value={office[k]||""} placeholder={ph||""} maxLength={maxLength} onChange={e=>up(k,e.target.value)}/>
+  </label>;
+  return <div>
+    <Sec title="事業所情報">
+      <label style={{display:"inline-flex",flexDirection:"column",gap:2,marginRight:14,marginBottom:10}}>
+        <span style={{fontSize:11,color:"#5C6BC0"}}>サービス種別</span>
+        <select value={office.svcType} onChange={e=>up("svcType",e.target.value)} style={{width:220}}>
+          <option value="46">就労継続支援B型（サービス種類46）</option>
+          <option value="45">就労継続支援A型（サービス種類45）</option>
+        </select>
+      </label>
+      <F label="事業所番号（10桁）" k="officeNo" ph="4510000000" maxLength={10}/>
+      <F label="事業所名" k="officeName" w={220}/>
+      <F label="都道府県番号（2桁）" k="prefNo" ph="45" maxLength={2} w={80}/>
+      <F label="既定の市町村番号（6桁）" k="cityNo" ph="452016" maxLength={6} w={110}/>
+      <div className="note">市町村番号は<b>支給決定を行った市町村</b>の番号です。利用者ごとに異なる場合は「👥利用者」タブで個別に設定してください（未設定の利用者はここの既定値を使用）。</div>
+    </Sec>
+    <Sec title="単価・地域区分">
+      <label style={{display:"inline-flex",flexDirection:"column",gap:2,marginRight:14}}>
+        <span style={{fontSize:11,color:"#5C6BC0"}}>地域区分</span>
+        <select value={office.chiikiCode} onChange={e=>{const c=CHIIKI.find(x=>x.code===e.target.value);up("chiikiCode",e.target.value);if(c)up("tanka",c.tanka);}}>
+          {CHIIKI.map(c=><option key={c.code} value={c.code}>{c.label}（{(c.tanka/100).toFixed(2)}円）</option>)}
+        </select>
+      </label>
+      <label style={{display:"inline-flex",flexDirection:"column",gap:2,marginRight:14}}>
+        <span style={{fontSize:11,color:"#5C6BC0"}}>単位数単価（円×100 例:10.00円→1000）</span>
+        <input style={{width:100}} value={office.tanka} onChange={e=>up("tanka",e.target.value.replace(/[^0-9]/g,""))}/>
+      </label>
+      <F label="既定給付率（900=9割）" k="defaultRate" w={100} maxLength={4}/>
+      <div className="note">単価は就労系の目安値です。貴事業所の所在地域・サービスに適用される正確な単価（告示別表）を確認して上書きしてください。</div>
+    </Sec>
+    <Sec title="実績記録票・その他">
+      <F label={"実績記録票の様式番号（空欄なら "+(isA?"1601(A型)":"1701(B型)")+"）"} k="youshiki" w={110} maxLength={4}/>
+      <F label="既定の開始時間（HHMM）" k="defIn" w={90} maxLength={4}/>
+      <F label="既定の終了時間（HHMM）" k="defOut" w={90} maxLength={4}/>
+      {isA&&<div className="warn">A型の実績記録票様式番号は「1601」を既定にしています。取込エラーになる場合は国保連へ様式番号をご確認のうえ変更してください。A型減免（事業者減免）を行っている場合、本ツールの明細書CSVは減免欄に対応していないため、該当利用者のみ簡易入力システムでの入力をご検討ください。</div>}
+    </Sec>
+  </div>;
+}
+
+/* ---------------- 利用者タブ ---------------- */
+function UsersTab({users,setUsers,office}){
+  const add=()=>setUsers(p=>[...p,{id:Date.now(),name:"",kana:"",jukyu:"",cityNo:"",limit:"",rate:"",kanri:""}]);
+  const up=(id,k,v)=>setUsers(p=>p.map(u=>u.id===id?{...u,[k]:v}:u));
+  const del=id=>{const u=users.find(x=>x.id===id);if(window.confirm((u&&u.name||"この利用者")+" を削除しますか？（実績データは残りますが表示されなくなります）"))setUsers(p=>p.filter(x=>x.id!==id));};
+  return <div>
+    <div style={{marginBottom:8,display:"flex",gap:8,alignItems:"center"}}>
+      <button className="act" style={{background:"#3949AB"}} onClick={add}>＋ 利用者を追加</button>
+      <span style={{fontSize:12,color:"#666"}}>{users.length}名登録済み</span>
+    </div>
+    <div style={{overflowX:"auto"}}>
+    <table style={{width:"100%",fontSize:12}}>
+      <thead><tr><th>氏名</th><th>フリガナ（半角ｶﾅ自動変換）</th><th>受給者証番号(10桁)</th><th>市町村番号(6桁)<br/><span style={{fontWeight:"normal"}}>空欄=既定{office.cityNo?("("+office.cityNo+")"):""}</span></th><th>負担上限月額(円)</th><th>給付率<br/><span style={{fontWeight:"normal"}}>空欄=900</span></th><th></th></tr></thead>
+      <tbody>
+        {users.map(u=><tr key={u.id}>
+          <td><input style={{width:120}} value={u.name} onChange={e=>up(u.id,"name",e.target.value)}/></td>
+          <td><input style={{width:170}} value={u.kana} placeholder="ﾔﾏﾀﾞ ﾀﾛｳ" onChange={e=>up(u.id,"kana",e.target.value)} onBlur={e=>up(u.id,"kana",toHankaku(e.target.value))}/></td>
+          <td><input className="mono" style={{width:110}} maxLength={10} value={u.jukyu} onChange={e=>up(u.id,"jukyu",e.target.value.replace(/[^0-9]/g,""))}/></td>
+          <td><input className="mono" style={{width:80}} maxLength={6} value={u.cityNo} onChange={e=>up(u.id,"cityNo",e.target.value.replace(/[^0-9]/g,""))}/></td>
+          <td><input className="mono" style={{width:80}} value={u.limit} placeholder="0/9300/37200" onChange={e=>up(u.id,"limit",e.target.value.replace(/[^0-9]/g,""))}/></td>
+          <td><input className="mono" style={{width:60}} maxLength={4} value={u.rate} onChange={e=>up(u.id,"rate",e.target.value.replace(/[^0-9]/g,""))}/></td>
+          <td><button className="mini" onClick={()=>del(u.id)}>🗑</button></td>
+        </tr>)}
+      </tbody>
+    </table>
+    </div>
+    <div className="note" style={{marginTop:8}}>負担上限月額は受給者証に記載の額（0円／9,300円／37,200円 等）。フリガナは明細書に半角カナで出力されます（入力欄を離れると自動変換）。</div>
+  </div>;
+}
+
+/* ---------------- 実績入力タブ ---------------- */
+function AttTab({users,ym,setYm,getMonth,setDay,office}){
+  const [uid,setUid]=useState(users[0]&&users[0].id||null);
+  useEffect(()=>{if(uid==null&&users[0])setUid(users[0].id);},[users]);
+  const user=users.find(u=>u.id===uid);
+  const [y,m]=ym.split("-").map(Number);
+  const nd=new Date(y,m,0).getDate();
+  const md=user?getMonth(uid):{};
+  const c=calcMonth(md);
+  const setD=(d,patch)=>setDay(uid,d,patch);
+  const stSel=(d,v)=>{
+    const patch={st:v};
+    if((v==="通"||v==="外")){
+      const cur=md[d]||{};
+      if(!cur.in)patch.in=office.defIn||"";
+      if(!cur.out)patch.out=office.defOut||"";
+    }
+    setD(d,patch);
+  };
+  const weekdaysFill=()=>{
+    if(!window.confirm("土日祝を除く平日すべてを「通所」（既定時間）で埋めます。既に入力済みの日は変更しません。よろしいですか？"))return;
+    for(let d=1;d<=nd;d++){
+      const wd=new Date(y,m-1,d).getDay();
+      if(wd===0||wd===6)continue;
+      if(md[d]&&md[d].st)continue;
+      setDay(uid,d,{st:"通",in:office.defIn||"",out:office.defOut||""});
+    }
+  };
+  const clearMonth=()=>{
+    if(!window.confirm(reiwaYM(ym)+" の "+(user&&user.name||"")+" さんの実績をすべて削除します。よろしいですか？"))return;
+    for(let d=1;d<=nd;d++)if(md[d])setDay(uid,d,{st:""});
+  };
+  if(!user)return <div className="note">先に「👥利用者」タブで利用者を登録してください。</div>;
+  const CB=({d,k,label})=><td style={{textAlign:"center"}}><input type="checkbox" checked={!!(md[d]&&md[d][k])} onChange={e=>setD(d,{[k]:e.target.checked?1:0})}/></td>;
+  return <div>
+    <div style={{display:"flex",gap:12,alignItems:"center",flexWrap:"wrap",marginBottom:8}}>
+      <select value={uid||""} onChange={e=>setUid(Number(e.target.value))}>
+        {users.map(u=><option key={u.id} value={u.id}>{u.name||"(無名)"}</option>)}
+      </select>
+      <MonthNav ym={ym} setYm={setYm}/>
+      <button className="mini" onClick={weekdaysFill}>平日を通所で一括入力</button>
+      <button className="mini" onClick={clearMonth}>当月クリア</button>
+    </div>
+    <div className="ok" style={{marginBottom:8}}>
+      利用 {c.use}日（うち施設外 {c.out}日）／欠席加算 {c.kasan}回／食事 {c.meal}回／送迎 往{c.s1}・復{c.s2}回
+    </div>
+    <div style={{overflowX:"auto"}}>
+    <table style={{fontSize:12,whiteSpace:"nowrap"}}>
+      <thead><tr>
+        <th>日</th><th>曜</th><th>状況</th><th>開始</th><th>終了</th>
+        <th>送往</th><th>送復</th><th>食事</th><th>医連</th><th>体験</th><th>地協</th><th>集中</th><th>緊受</th><th>定超</th>
+        <th>訪問h<br/>(1h未満)</th><th>訪問h<br/>(1h以上)</th><th>備考</th>
+      </tr></thead>
+      <tbody>
+        {Array.from({length:nd},(_,i)=>i+1).map(d=>{
+          const wd=new Date(y,m-1,d).getDay();
+          const v=md[d]||{};
+          const bg=wd===0?"#FFEBEE":wd===6?"#E3F2FD":"#fff";
+          return <tr key={d} style={{background:bg}}>
+            <td style={{textAlign:"right"}}>{d}</td>
+            <td style={{color:wd===0?"#C62828":wd===6?"#1565C0":"#333"}}>{WD[wd]}</td>
+            <td><select value={v.st||""} onChange={e=>stSel(d,e.target.value)}>
+              <option value="">－</option><option value="通">通所</option><option value="外">施設外</option>
+              <option value="加">欠席(加算)</option><option value="欠">欠席</option><option value="在">在宅</option>
+            </select></td>
+            <td><input className="mono" style={{width:52}} maxLength={4} value={v.in||""} placeholder="1000" onChange={e=>setD(d,{in:e.target.value.replace(/[^0-9]/g,"")})}/></td>
+            <td><input className="mono" style={{width:52}} maxLength={4} value={v.out||""} placeholder="1500" onChange={e=>setD(d,{out:e.target.value.replace(/[^0-9]/g,"")})}/></td>
+            <CB d={d} k="s1"/><CB d={d} k="s2"/><CB d={d} k="meal"/><CB d={d} k="iren"/><CB d={d} k="taiken"/>
+            <CB d={d} k="chiiki"/><CB d={d} k="shuchu"/><CB d={d} k="kinkyu"/><CB d={d} k="teiin"/>
+            <td><input className="mono" style={{width:40}} value={v.hou1||""} onChange={e=>setD(d,{hou1:e.target.value.replace(/[^0-9]/g,"")})}/></td>
+            <td><input className="mono" style={{width:40}} value={v.hou2||""} onChange={e=>setD(d,{hou2:e.target.value.replace(/[^0-9]/g,"")})}/></td>
+            <td><input style={{width:160}} value={v.memo||""} onChange={e=>setD(d,{memo:e.target.value})}/></td>
+          </tr>;
+        })}
+      </tbody>
+    </table>
+    </div>
+    <div className="note" style={{marginTop:8}}>
+      状況：<b>通所</b>=1／<b>施設外</b>=2（施設外支援）／<b>欠席(加算)</b>=欠席時対応加算の対象（実績記録票には欠席=3で出力）／<b>欠席</b>=加算なし欠席（記録のみ・CSVにも欠席3で出力）／<b>在宅</b>=在宅時生活支援の日数集計用。
+      時間は4桁数字（例 1000＝10:00）。チェック欄（医連〜定超）は該当加算の算定日にチェックしてください。
+    </div>
+  </div>;
+}
+
+/* ---------------- 加算マスタタブ ---------------- */
+function ItemsTab({items,setItems,isA}){
+  const up=(id,k,v)=>setItems(p=>p.map(i=>i.id===id?{...i,[k]:v}:i));
+  const add=()=>setItems(p=>[...p,{id:p.reduce((a,i)=>Math.max(a,i.id),0)+1,c:"",n:"（新規項目）",u:"",p:"日",e:false}]);
+  const del=id=>{if(window.confirm("この行を削除しますか？"))setItems(p=>p.filter(i=>i.id!==id));};
+  const reset=()=>{if(window.confirm("加算マスタを既定値に戻します。編集内容は失われます。よろしいですか？"))setItems(withIds(isA?DEF45:DEF46));};
+  /* 公式サービスコード表CSV等からの単位数取込 */
+  const fileRef=useRef(null);
+  const importMaster=file=>{
+    const reader=new FileReader();
+    reader.onload=()=>{
+      try{
+        const buf=new Uint8Array(reader.result);
+        const uni=Encoding.convert(buf,{to:"UNICODE",from:Encoding.detect(buf),type:"string"});
+        const lines=uni.split(/\r?\n/).filter(l=>l.trim());
+        const map={};
+        const pfx=isA?"45":"46";
+        lines.forEach(l=>{
+          const f=l.split(",").map(x=>x.replace(/^"|"$/g,"").trim());
+          let code=null;
+          for(let i=0;i<f.length;i++){
+            if(/^\d{6}$/.test(f[i])&&f[i].substring(0,2)===pfx){code=f[i];break;}
+            if(f[i]===pfx&&i+1<f.length&&/^\d{4}$/.test(f[i+1])){code=pfx+f[i+1];break;}
+          }
+          if(!code)return;
+          const nums=f.filter(x=>/^-?\d{1,5}$/.test(x)&&x!==code.substring(0,2)&&x!==code.substring(2));
+          const unit=nums.length?nums[nums.length-1]:null;
+          map[code]={unit,row:f};
+        });
+        let hit=0;
+        setItems(p=>p.map(i=>{
+          const code=String(i.c||"").trim();
+          if(code&&map[code]&&map[code].unit!=null){hit++;return {...i,u:String(map[code].unit)};}
+          return i;
+        }));
+        alert("マスタ取込完了：コード一致 "+hit+" 件の単位数を更新しました。\n（コード表内の候補コード数: "+Object.keys(map).length+"）\n\n※取込結果は必ず目視で確認してください。列構成によっては正しく読めない場合があります。");
+      }catch(e){alert("読み込みに失敗しました: "+e.message);}
+    };
+    reader.readAsArrayBuffer(file);
+  };
+  return <div>
+    <div style={{display:"flex",gap:8,marginBottom:8,flexWrap:"wrap"}}>
+      <button className="act" style={{background:"#3949AB"}} onClick={add}>＋ 行を追加</button>
+      <button className="mini" onClick={reset}>既定値に戻す</button>
+      <button className="mini" onClick={()=>fileRef.current&&fileRef.current.click()}>📥 サービスコード表CSVから単位数を取込</button>
+      <input type="file" accept=".csv,.txt" style={{display:"none"}} ref={fileRef} onChange={e=>{if(e.target.files[0])importMaster(e.target.files[0]);e.target.value="";}}/>
+    </div>
+    <div style={{overflowX:"auto"}}>
+    <table style={{width:"100%",fontSize:12}}>
+      <thead><tr><th>有効</th><th>サービスコード(6桁)</th><th>名称</th><th>単位数</th><th>率%<br/><span style={{fontWeight:"normal"}}>(処遇改善等)</span></th><th>算定方法</th><th></th></tr></thead>
+      <tbody>
+        {items.map(i=><tr key={i.id} style={{background:i.m?"#FFF3E0":i.e?"#E8F5E9":"#fff"}}>
+          <td style={{textAlign:"center"}}><input type="checkbox" checked={!!i.e} onChange={e=>up(i.id,"e",e.target.checked)}/></td>
+          <td><input className="mono" style={{width:80}} maxLength={6} value={i.c||""} onChange={e=>up(i.id,"c",e.target.value.replace(/[^0-9]/g,""))}/></td>
+          <td><input style={{width:"100%",minWidth:280}} value={i.n} onChange={e=>up(i.id,"n",e.target.value)}/></td>
+          <td><input className="mono" style={{width:70}} value={i.u||""} onChange={e=>up(i.id,"u",e.target.value.replace(/[^0-9-]/g,""))}/></td>
+          <td>{i.p==="率"?<input className="mono" style={{width:60}} value={i.pct||""} placeholder="8.1" onChange={e=>up(i.id,"pct",e.target.value.replace(/[^0-9.]/g,""))}/>:"－"}</td>
+          <td><select value={i.p} onChange={e=>up(i.id,"p",e.target.value)}>
+            {PERS.map(pp=><option key={pp[0]} value={pp[0]}>{pp[0]}：{pp[1]}</option>)}
+          </select></td>
+          <td><button className="mini" onClick={()=>del(i.id)}>🗑</button></td>
+        </tr>)}
+      </tbody>
+    </table>
+    </div>
+    <div className="note" style={{marginTop:8}}>
+      ・「率」（処遇改善加算等）は、有効な他項目の合計単位数×率%（四捨五入）で自動計算されます。届出区分の率とサービスコードを必ず入力してください。<br/>
+      ・減算はオレンジ色の行です。単位数に<b>マイナス値</b>を入れ、算定方法「回」で回数を出力タブから手入力してください。<br/>
+      ・既定の単位数は令和6年度報酬改定ベースの参考値です。<b>定員規模・人員配置・スコア（A型）・平均工賃（B型）で変わる項目が多数あります。</b>必ず最新のサービスコード表で確認してください。
+    </div>
+  </div>;
+}
+
+/* ---------------- 請求・CSV出力タブ ---------------- */
+function OutTab({users,ym,setYm,getMonth,items,getCnts,setCnt,office,buildJ121,buildJ611,doDownload,youshiki}){
+  const [openUser,setOpenUser]=useState(null);
+  const isA=office.svcType==="45";
+  const bills=users.map(u=>({u,bill:calcBill(u,getMonth(u.id),items,getCnts(u.id),office)}))
+    .filter(x=>x.bill.c.use>0||x.bill.totalUnits>0);
+  const tot=bills.reduce((a,x)=>({units:a.units+x.bill.totalUnits,cost:a.cost+x.bill.totalCost,burden:a.burden+x.bill.determined,claim:a.claim+x.bill.claim}),{units:0,cost:0,burden:0,claim:0});
+  const fmt=n=>n.toLocaleString();
+  return <div>
+    <div style={{display:"flex",gap:12,alignItems:"center",flexWrap:"wrap",marginBottom:10}}>
+      <MonthNav ym={ym} setYm={setYm}/>
+      <button className="act" style={{background:"#B71C1C"}} onClick={()=>doDownload(buildJ121)}>🏛️ 明細書CSV（J121）出力</button>
+      <button className="act" style={{background:"#1565C0"}} onClick={()=>doDownload(buildJ611)}>📥 実績記録票CSV（J611・様式{youshiki}）出力</button>
+    </div>
+    <Sec title={"請求確認（"+reiwaYM(ym)+"・"+(isA?"A型":"B型")+"）"}>
+      {bills.length===0?<div className="note">当月の実績がある利用者がいません。「📅実績入力」で入力してください。</div>:
+      <div style={{overflowX:"auto"}}>
+      <table style={{width:"100%",fontSize:12}}>
+        <thead><tr><th>氏名</th><th>受給者証</th><th>利用日数</th><th>総単位数</th><th>総費用額</th><th>利用者負担</th><th>請求額</th><th>内訳</th></tr></thead>
+        <tbody>
+          {bills.map(({u,bill})=><React.Fragment key={u.id}>
+            <tr>
+              <td>{u.name}</td><td className="mono">{u.jukyu||<span style={{color:"#C62828"}}>未入力</span>}</td>
+              <td style={{textAlign:"right"}}>{bill.c.use}</td>
+              <td style={{textAlign:"right"}}>{fmt(bill.totalUnits)}</td>
+              <td style={{textAlign:"right"}}>{fmt(bill.totalCost)}円</td>
+              <td style={{textAlign:"right"}}>{fmt(bill.determined)}円</td>
+              <td style={{textAlign:"right",fontWeight:"bold"}}>{fmt(bill.claim)}円</td>
+              <td><button className="mini" onClick={()=>setOpenUser(openUser===u.id?null:u.id)}>{openUser===u.id?"閉じる":"明細・回数調整"}</button></td>
+            </tr>
+            {openUser===u.id&&<tr><td colSpan={8} style={{background:"#F5F5F5"}}>
+              <table style={{fontSize:12,margin:"6px 0"}}>
+                <thead><tr><th>コード</th><th>名称</th><th>単位数</th><th>回数（自動）</th><th>回数上書き</th><th>サービス単位数</th></tr></thead>
+                <tbody>
+                  {items.filter(i=>i.e).map(it=>{
+                    const auto=it.p==="率"?"率計算":String(autoCount(bill.c,it.p));
+                    const ov=getCnts(u.id)[it.id];
+                    const row=bill.rows.find(r=>r.id===it.id);
+                    return <tr key={it.id}>
+                      <td className="mono">{it.c||"—"}</td><td>{it.n}</td>
+                      <td style={{textAlign:"right"}}>{it.p==="率"?(it.pct||"?")+"%":it.u}</td>
+                      <td style={{textAlign:"right"}}>{auto}</td>
+                      <td>{it.p==="率"?"—":<input className="mono" style={{width:50}} value={ov==null?"":ov} placeholder="自動" onChange={e=>setCnt(u.id,it.id,e.target.value.replace(/[^0-9]/g,""))}/>}</td>
+                      <td style={{textAlign:"right",fontWeight:row?"bold":"normal"}}>{row?fmt(row.svc):"0"}</td>
+                    </tr>;
+                  })}
+                </tbody>
+              </table>
+              <div style={{fontSize:11,color:"#666"}}>回数上書きは当月のみ有効。空欄に戻すと自動集計値を使用します。</div>
+            </td></tr>}
+          </React.Fragment>)}
+        </tbody>
+        <tfoot><tr style={{background:"#E8EAF6",fontWeight:"bold"}}>
+          <td colSpan={2}>合計（{bills.length}名）</td><td></td>
+          <td style={{textAlign:"right"}}>{fmt(tot.units)}</td>
+          <td style={{textAlign:"right"}}>{fmt(tot.cost)}円</td>
+          <td style={{textAlign:"right"}}>{fmt(tot.burden)}円</td>
+          <td style={{textAlign:"right"}}>{fmt(tot.claim)}円</td><td></td>
+        </tr></tfoot>
+      </table>
+      </div>}
+      <div className="note" style={{marginTop:8}}>
+        この合計欄が<b>請求書（様式第一）</b>の記載内容に対応します（件数{bills.length}件・総単位数{fmt(tot.units)}・総費用額{fmt(tot.cost)}円・利用者負担{fmt(tot.burden)}円・請求額{fmt(tot.claim)}円）。
+        電子請求受付システム側で請求書情報の入力を求められた場合はこの数値を使用してください。
+      </div>
+    </Sec>
+  </div>;
+}
+
+/* ---------------- CSV検査タブ ---------------- */
+function CheckTab(){
+  const [report,setReport]=useState(null);
+  const [preview,setPreview]=useState([]);
+  const fileRef=useRef(null);
+  const J121LEN={"01":34,"02":14,"03":28,"04":24};
+  const inspect=file=>{
+    const reader=new FileReader();
+    reader.onload=()=>{
+      const buf=new Uint8Array(reader.result);
+      let text;
+      try{text=Encoding.convert(buf,{to:"UNICODE",from:Encoding.detect(buf),type:"string"});}
+      catch(e){setReport({errors:["文字コードを判定できませんでした: "+e.message],warns:[],infos:[]});return;}
+      const errors=[],warns=[],infos=[];
+      const enc=Encoding.detect(buf);
+      const encOk=(enc==="SJIS"||enc==="ASCII"||enc==="BINARY");
+      infos.push("文字コード判定: "+enc+(encOk?"（OK・Shift-JIS互換）":"（⚠️ 国保連はShift-JISが必要です）"));
+      if(!encOk)warns.push("文字コードがShift-JISではない可能性があります（判定:"+enc+"）");
+      const hasCRLF=/\r\n/.test(text);
+      if(!hasCRLF)warns.push("改行コードがCRLFではない可能性があります");
+      const rawLines=text.split(/\r\n|\n/).filter(l=>l!=="");
+      if(rawLines.length<3){errors.push("行数が少なすぎます（コントロール+データ+エンドの3行以上が必要）");setReport({errors,warns,infos});return;}
+      /* CSVパース（ダブルクォート対応） */
+      const parse=l=>{
+        const out=[];let cur="";let q=false;
+        for(let i=0;i<l.length;i++){
+          const ch=l[i];
+          if(q){
+            if(ch==='"'){if(l[i+1]==='"'){cur+='"';i++;}else q=false;}
+            else cur+=ch;
+          }else{
+            if(ch==='"')q=true;
+            else if(ch===","){out.push(cur);cur="";}
+            else cur+=ch;
+          }
+        }
+        out.push(cur);return out;
+      };
+      const rows=rawLines.map(parse);
+      const ctrl=rows[0],end=rows[rows.length-1],data=rows.slice(1,rows.length-1);
+      /* コントロール */
+      if(ctrl[0]!=="1")errors.push("1行目がコントロールレコード（先頭1）ではありません");
+      if(ctrl.length!==11)warns.push("コントロールレコードの項目数が11ではありません（"+ctrl.length+"項目）");
+      const declared=parseInt(ctrl[3])||0;
+      if(declared!==data.length)errors.push("コントロールのデータ件数("+declared+")と実データ行数("+data.length+")が一致しません");
+      const kind=ctrl[4];
+      infos.push("交換情報: "+kind+"／提供年月: "+(ctrl[9]||"?")+"／データ"+data.length+"件");
+      if(!/^\d{6}$/.test(String(ctrl[9])))warns.push("コントロールの提供年月（10項目め）が6桁数字ではありません: "+ctrl[9]);
+      /* エンド */
+      if(end[0]!=="3")errors.push("最終行がエンドレコード（先頭3）ではありません");
+      else{
+        const endN=parseInt(end[1])||0;
+        if(endN!==data.length+2)warns.push("エンドレコードの値("+endN+")が総レコード数("+(data.length+2)+")と一致しません");
+      }
+      /* データ行 */
+      let seqOk=true;
+      data.forEach((f,i)=>{
+        const rowNo=i+2;
+        if(f[0]!=="2")errors.push(rowNo+"行目: 先頭が2（データレコード）ではありません");
+        if(parseInt(f[1])!==i+2)seqOk=false;
+        const id=f[2],rt=f[3];
+        if(kind==="J61"){
+          if(id!=="J611")errors.push(rowNo+"行目: 交換情報識別が J611 ではありません("+id+")");
+          const expected=rt==="01"?174:rt==="02"?115:null;
+          if(expected==null)errors.push(rowNo+"行目: レコード種別("+rt+")が不明です");
+          else if(f.length!==expected)errors.push(rowNo+"行目: 項目数"+f.length+"（正: "+expected+"）");
+          if(f[7]&&!/^\d{10}$/.test(f[7]))warns.push(rowNo+"行目: 受給者証番号が10桁数字ではありません("+f[7]+")");
+        }else if(kind==="J12"){
+          if(id!=="J121")errors.push(rowNo+"行目: 交換情報識別が J121 ではありません("+id+")");
+          const expected=J121LEN[rt];
+          if(!expected)errors.push(rowNo+"行目: レコード種別("+rt+")が不明です");
+          else if(f.length!==expected)warns.push(rowNo+"行目: 項目数"+f.length+"（本ツール標準: "+expected+"）");
+          if(f[5]&&!/^\d{10}$/.test(f[5])&&rt!=="01")warns.push(rowNo+"行目: 受給者証番号が10桁数字ではありません("+f[5]+")");
+        }
+      });
+      if(!seqOk)errors.push("レコード通番（2列目）が2から連番になっていません");
+      /* J121 合計突合 */
+      if(kind==="J12"){
+        const byUser={};
+        data.forEach(f=>{
+          const key=f[5];byUser[key]=byUser[key]||{sum03:0,total01:null,total04:null};
+          if(f[3]==="03")byUser[key].sum03+=parseInt(f[13])||0;
+          if(f[3]==="01")byUser[key].total01=parseInt(f[21])||0;
+          if(f[3]==="04")byUser[key].total04=parseInt(f[12])||0;
+        });
+        Object.keys(byUser).forEach(k=>{
+          const b=byUser[k];
+          if(b.total01!=null&&b.sum03!==b.total01)warns.push("受給者証"+k+": 明細(03)の単位数合計("+b.sum03+")と基本情報(01)の総単位数("+b.total01+")が不一致");
+        });
+      }
+      if(errors.length===0)infos.push("構造チェック合格 ✅");
+      setReport({errors,warns,infos});
+      setPreview(rows.slice(0,30));
+    };
+    reader.readAsArrayBuffer(file);
+  };
+  return <div>
+    <div className="card" style={{textAlign:"center",border:"2px dashed #7986CB",cursor:"pointer"}}
+      onClick={()=>fileRef.current&&fileRef.current.click()}
+      onDragOver={e=>e.preventDefault()}
+      onDrop={e=>{e.preventDefault();if(e.dataTransfer.files[0])inspect(e.dataTransfer.files[0]);}}>
+      <div style={{fontSize:15,fontWeight:"bold",color:"#3949AB"}}>📂 生成したCSVをここにドロップ（またはクリックして選択）</div>
+      <div style={{fontSize:12,color:"#666",marginTop:4}}>Shift-JISのままドロップしてください（Excelで開いて保存し直したファイルは壊れています）</div>
+      <input type="file" accept=".csv,.CSV,.txt" style={{display:"none"}} ref={fileRef} onChange={e=>{if(e.target.files[0])inspect(e.target.files[0]);e.target.value="";}}/>
+    </div>
+    {report&&<div>
+      {report.errors.length>0&&<div className="warn" style={{marginBottom:8}}><b>❌ エラー（要修正）</b><br/>{report.errors.map((e,i)=><div key={i}>・{e}</div>)}</div>}
+      {report.warns.length>0&&<div className="note" style={{marginBottom:8}}><b>⚠️ 警告（確認推奨）</b><br/>{report.warns.map((e,i)=><div key={i}>・{e}</div>)}</div>}
+      <div className="ok" style={{marginBottom:8}}>{report.infos.map((e,i)=><div key={i}>・{e}</div>)}</div>
+      {preview.length>0&&<div style={{overflowX:"auto"}}>
+        <table style={{fontSize:11,whiteSpace:"nowrap"}}>
+          <tbody>{preview.map((r,i)=><tr key={i}><th>{i+1}</th>{r.slice(0,20).map((c,j)=><td key={j} className="mono">{c}</td>)}{r.length>20&&<td>…全{r.length}項目</td>}</tr>)}</tbody>
+        </table>
+        <div style={{fontSize:11,color:"#666"}}>先頭30行×20項目のプレビュー</div>
+      </div>}
+    </div>}
+  </div>;
+}
+
+/* ---------------- データ管理タブ ---------------- */
+function DataTab({all,restore}){
+  const fileRef=useRef(null);
+  const backup=()=>{
+    const blob=new Blob([JSON.stringify(all,null,1)],{type:"application/json"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");a.href=url;
+    a.download="国保連CSVツール_バックアップ_"+new Date().toISOString().slice(0,10)+".json";a.click();
+    setTimeout(()=>URL.revokeObjectURL(url),3000);
+  };
+  const doRestore=file=>{
+    const reader=new FileReader();
+    reader.onload=()=>{
+      try{
+        const d=JSON.parse(reader.result);
+        if(!window.confirm("バックアップから復元します。現在のデータは上書きされます。よろしいですか？"))return;
+        restore(d);alert("✅ 復元しました");
+      }catch(e){alert("読み込み失敗: "+e.message);}
+    };
+    reader.readAsText(file);
+  };
+  return <div>
+    <Sec title="バックアップ・復元">
+      <button className="act" style={{background:"#3949AB",marginRight:8}} onClick={backup}>💾 バックアップをダウンロード</button>
+      <button className="act" style={{background:"#00695C"}} onClick={()=>fileRef.current&&fileRef.current.click()}>📂 バックアップから復元</button>
+      <input type="file" accept=".json" style={{display:"none"}} ref={fileRef} onChange={e=>{if(e.target.files[0])doRestore(e.target.files[0]);e.target.value="";}}/>
+      <div className="note" style={{marginTop:8}}>データはこのブラウザ内（localStorage）に保存されます。パソコンの変更・ブラウザ履歴削除に備え、月次請求のたびにバックアップを取ることを推奨します。</div>
+    </Sec>
+    <Sec title="提出前チェックリスト">
+      <div style={{fontSize:12,lineHeight:2}}>
+        ☐ 加算マスタの単位数・サービスコードを最新のサービスコード表で確認した<br/>
+        ☐ 「請求・CSV出力」の合計額が手元の計算・前月実績と大きく乖離していない<br/>
+        ☐ 生成CSVを「CSV検査」タブでチェックしエラーがない<br/>
+        ☐ CSVをExcelで開いていない（開くと0落ち・項目数変化で取込エラーになります）<br/>
+        ☐ 初回・様式変更後は電子請求受付システムのテスト送信（到達確認）で通過を確認した<br/>
+        ☐ 提出期限（毎月10日）に間に合うよう送信した
+      </div>
+    </Sec>
+  </div>;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
