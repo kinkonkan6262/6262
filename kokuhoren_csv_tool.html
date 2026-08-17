@@ -84,6 +84,34 @@ const CHIIKI=[
  {code:"07",label:"7級地",tanka:1042},{code:"08",label:"その他",tanka:1000},
 ];
 
+/* ▼ 事業所届出の控え（電子請求受付システム「事業所情報保守」画面より転記・令和8年8月1日変更届）
+   届出を変更した場合はここを最新の内容に更新すること */
+const TODOKEDE={
+  officeNo:"4510102009",
+  date:"令和8年8月1日",
+  memo:[
+   ["サービス種類","就労継続支援B型（基準該当：非該当）"],
+   ["人員配置区分","Ⅱ型（7.5:1）"],
+   ["定員区分","21人〜40人"],
+   ["多機能型等定員区分","単独型"],
+   ["指定管理者制度","非該当"],
+   ["平均工賃月額区分","（R8改定対象外）平均〜 ※画面で見切れのため要確認"],
+   ["送迎加算","無し"],
+   ["食事提供体制加算","無し"],
+   ["就労移行支援体制加算","無し"],
+   ["視覚・聴覚言語障害者支援体制加算","無し"],
+   ["福祉専門職員配置等加算","無し"],
+   ["目標工賃達成指導員配置加算","無し"],
+   ["重度者支援体制加算","無し"],
+   ["利用定員超過による減算","無し"],
+   ["職員欠如による減算","無し"],
+   ["短時間利用減算","無し"],
+  ],
+  /* 『無し』で届け出ている加算の名称キーワード（有効化すると警告を出す） */
+  nashi:["送迎加算","食事提供体制","就労移行支援体制","視覚・聴覚","福祉専門職員配置等","目標工賃達成指導員配置","重度者支援体制"],
+};
+const todokedeConflicts=items=>items.filter(i=>i.e&&TODOKEDE.nashi.some(k=>String(i.n||"").includes(k))).map(i=>i.n);
+
 /* 算定方法（回数の数え方） */
 const PERS=[
  ["日","利用日数（通所+施設外）"],["食","食事提供 回数"],["欠","欠席時対応 回数"],
@@ -129,6 +157,7 @@ const KASAN_COMMON=[
 ];
 const DEF46=[
  {c:"462998",n:"基本報酬（例：就継B型サービス費 ※コード表で自事業所の区分を確認）",u:"738",p:"日",e:true},
+ {c:"",n:"基本報酬【R8.8.1届出反映：Ⅱ型(7.5:1)・定員21〜40人】※R8サービスコード表でコードと単位数を設定し、こちらを有効に・上の旧行を無効に",u:"",p:"日",e:false},
  {c:"",n:"福祉・介護職員等処遇改善加算（率計算・届出区分の率%を入力）",u:"",p:"率",pct:"",e:false},
  {c:"465255",n:"目標工賃達成指導員配置加算",u:"45",p:"日",e:false},
  {c:"465087",n:"目標工賃達成加算（R6新設）",u:"10",p:"日",e:false},
@@ -265,7 +294,12 @@ function MonthNav({ym,setYm}){
 /* ============================ App ============================ */
 function App(){
   const [tab,setTab]=useState("office");
-  const [office,setOffice]=useState(()=>load("office",{svcType:"46",officeNo:"",officeName:"",prefNo:"45",cityNo:"",chiikiCode:"08",tanka:1000,mediaType:"7",youshiki:"",defaultRate:"900",defIn:"1000",defOut:"1500"}));
+  const [office,setOffice]=useState(()=>{
+    const o=load("office",{svcType:"46",officeNo:"4510102009",officeName:"きんこんかん",prefNo:"45",cityNo:"",chiikiCode:"08",tanka:1000,mediaType:"7",youshiki:"",defaultRate:"900",defIn:"1000",defOut:"1500"});
+    /* 事業所届出の控え(TODOKEDE)の事業所を既定として補完（未入力の場合のみ） */
+    if(!String(o.officeNo||"").trim()){o.officeNo=TODOKEDE.officeNo;if(!String(o.officeName||"").trim())o.officeName="きんこんかん";}
+    return o;
+  });
   const [users,setUsers]=useState(()=>load("users",[]));
   const [att,setAtt]=useState(()=>load("att",{}));           // att[userId][ym][day]
   const [items45,setItems45]=useState(()=>mergeItems(load("items45",null),DEF45));
@@ -331,6 +365,10 @@ function App(){
     const svcType=office.svcType;
     const chiikiCode=(office.chiikiCode||"08").padStart(2,"0");
     const offNo10=offNo.length>=10?offNo:offNo.padEnd(10," ");
+    /* 事業所届出（TODOKEDE）で『無し』の加算が有効になっていないか確認 */
+    if(svcType==="46"&&offNo===TODOKEDE.officeNo){
+      todokedeConflicts(items).forEach(n=>warnings.push("「"+n+"」は事業所届出（"+TODOKEDE.date+"変更届）で『無し』のため算定できない可能性が高いです。届出を変更済みの場合はこの警告は無視してください"));
+    }
     let dataRecs=[];let recSeq=2;let targets=0;const perUser=[];
     users.forEach(u=>{
       const md=getMonth(u.id);
@@ -737,7 +775,16 @@ function ItemsTab({items,setItems,isA}){
     };
     reader.readAsArrayBuffer(file);
   };
+  const conflicts=isA?[]:todokedeConflicts(items);
   return <div>
+    {!isA&&<div className="note" style={{marginBottom:8}}>
+      <b>📋 事業所届出の控え（{TODOKEDE.date} 変更届・電子請求受付システム「事業所情報保守」画面より）</b><br/>
+      {TODOKEDE.memo.map(([k,v],i)=><span key={i} style={{display:"inline-block",marginRight:12}}>{k}＝<b>{v}</b></span>)}
+      <div style={{marginTop:4}}>『無し』で届け出ている加算を有効にすると、CSV出力時に警告が表示されます。届出内容を変更したら開発者に連絡してこの控えを更新してください。</div>
+    </div>}
+    {conflicts.length>0&&<div className="warn" style={{marginBottom:8}}>
+      ⚠️ 届出で『無し』の加算が有効になっています：{conflicts.join("、")}
+    </div>}
     <div style={{display:"flex",gap:8,marginBottom:8,flexWrap:"wrap"}}>
       <button className="act" style={{background:"#3949AB"}} onClick={add}>＋ 行を追加</button>
       <button className="mini" onClick={reset}>既定値に戻す</button>
