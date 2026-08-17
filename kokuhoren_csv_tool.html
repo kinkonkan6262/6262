@@ -70,6 +70,10 @@ const toHankaku=s=>String(s||"").split("").map(ch=>{
   if(c>=0x3041&&c<=0x3096){const kata=String.fromCharCode(c+0x60);return Z2H[kata]||kata;}
   return ch;
 }).join("");
+/* 数字入力の正規化：全角数字（IME入力）を半角に直してから数字以外を除去 */
+const numIn=s=>String(s||"").replace(/[０-９]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0)).replace(/[^0-9]/g,"");
+const numInSigned=s=>String(s||"").replace(/[０-９]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0)).replace(/[ー−]/g,"-").replace(/[^0-9-]/g,"");
+const numDec=s=>String(s||"").replace(/[０-９]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0)).replace(/．/g,".").replace(/[^0-9.]/g,"");
 
 /* 地域区分ごとの単位数単価（円×100）。就労系（人件費割合区分）目安値。
    ※必ず貴事業所に適用される単価を告示で確認し、必要なら手入力で上書き */
@@ -535,9 +539,11 @@ function App(){
 /* ---------------- 設定タブ ---------------- */
 function OfficeTab({office,up}){
   const isA=office.svcType==="45";
-  const F=({label,k,w,ph,maxLength})=><label style={{display:"inline-flex",flexDirection:"column",gap:2,marginRight:14,marginBottom:10}}>
+  /* コンポーネントではなく関数呼び出しで描画する（コンポーネント定義を
+     render内に置くと毎回作り直されて入力中にフォーカスが外れるため） */
+  const F=({label,k,w,ph,maxLength,digits})=><label key={k} style={{display:"inline-flex",flexDirection:"column",gap:2,marginRight:14,marginBottom:10}}>
     <span style={{fontSize:11,color:"#5C6BC0"}}>{label}</span>
-    <input style={{width:w||140}} value={office[k]||""} placeholder={ph||""} maxLength={maxLength} onChange={e=>up(k,e.target.value)}/>
+    <input style={{width:w||140}} value={office[k]||""} placeholder={ph||""} maxLength={maxLength} onChange={e=>up(k,digits?numIn(e.target.value):e.target.value)}/>
   </label>;
   return <div>
     <Sec title="事業所情報">
@@ -548,10 +554,10 @@ function OfficeTab({office,up}){
           <option value="45">就労継続支援A型（サービス種類45）</option>
         </select>
       </label>
-      <F label="事業所番号（10桁）" k="officeNo" ph="4510000000" maxLength={10}/>
-      <F label="事業所名" k="officeName" w={220}/>
-      <F label="都道府県番号（2桁）" k="prefNo" ph="45" maxLength={2} w={80}/>
-      <F label="既定の市町村番号（6桁）" k="cityNo" ph="452016" maxLength={6} w={110}/>
+      {F({label:"事業所番号（10桁）",k:"officeNo",ph:"4510000000",maxLength:10,digits:true})}
+      {F({label:"事業所名",k:"officeName",w:220})}
+      {F({label:"都道府県番号（2桁）",k:"prefNo",ph:"45",maxLength:2,w:80,digits:true})}
+      {F({label:"既定の市町村番号（6桁）",k:"cityNo",ph:"452016",maxLength:6,w:110,digits:true})}
       <div className="note">市町村番号は<b>支給決定を行った市町村</b>の番号です。利用者ごとに異なる場合は「👥利用者」タブで個別に設定してください（未設定の利用者はここの既定値を使用）。</div>
     </Sec>
     <Sec title="単価・地域区分">
@@ -563,15 +569,15 @@ function OfficeTab({office,up}){
       </label>
       <label style={{display:"inline-flex",flexDirection:"column",gap:2,marginRight:14}}>
         <span style={{fontSize:11,color:"#5C6BC0"}}>単位数単価（円×100 例:10.00円→1000）</span>
-        <input style={{width:100}} value={office.tanka} onChange={e=>up("tanka",e.target.value.replace(/[^0-9]/g,""))}/>
+        <input style={{width:100}} value={office.tanka} onChange={e=>up("tanka",numIn(e.target.value))}/>
       </label>
-      <F label="既定給付率（900=9割）" k="defaultRate" w={100} maxLength={4}/>
+      {F({label:"既定給付率（900=9割）",k:"defaultRate",w:100,maxLength:4,digits:true})}
       <div className="note">単価は就労系の目安値です。貴事業所の所在地域・サービスに適用される正確な単価（告示別表）を確認して上書きしてください。</div>
     </Sec>
     <Sec title="実績記録票・その他">
-      <F label={"実績記録票の様式番号（空欄なら "+(isA?"1601(A型)":"1701(B型)")+"）"} k="youshiki" w={110} maxLength={4}/>
-      <F label="既定の開始時間（HHMM）" k="defIn" w={90} maxLength={4}/>
-      <F label="既定の終了時間（HHMM）" k="defOut" w={90} maxLength={4}/>
+      {F({label:"実績記録票の様式番号（空欄なら "+(isA?"1601(A型)":"1701(B型)")+"）",k:"youshiki",w:110,maxLength:4,digits:true})}
+      {F({label:"既定の開始時間（HHMM）",k:"defIn",w:90,maxLength:4,digits:true})}
+      {F({label:"既定の終了時間（HHMM）",k:"defOut",w:90,maxLength:4,digits:true})}
       {isA&&<div className="warn">A型の実績記録票様式番号は「1601」を既定にしています。取込エラーになる場合は国保連へ様式番号をご確認のうえ変更してください。A型減免（事業者減免）を行っている場合、本ツールの明細書CSVは減免欄に対応していないため、該当利用者のみ簡易入力システムでの入力をご検討ください。</div>}
     </Sec>
   </div>;
@@ -594,10 +600,10 @@ function UsersTab({users,setUsers,office}){
         {users.map(u=><tr key={u.id}>
           <td><input style={{width:120}} value={u.name} onChange={e=>up(u.id,"name",e.target.value)}/></td>
           <td><input style={{width:170}} value={u.kana} placeholder="ﾔﾏﾀﾞ ﾀﾛｳ" onChange={e=>up(u.id,"kana",e.target.value)} onBlur={e=>up(u.id,"kana",toHankaku(e.target.value))}/></td>
-          <td><input className="mono" style={{width:110}} maxLength={10} value={u.jukyu} onChange={e=>up(u.id,"jukyu",e.target.value.replace(/[^0-9]/g,""))}/></td>
-          <td><input className="mono" style={{width:80}} maxLength={6} value={u.cityNo} onChange={e=>up(u.id,"cityNo",e.target.value.replace(/[^0-9]/g,""))}/></td>
-          <td><input className="mono" style={{width:80}} value={u.limit} placeholder="0/9300/37200" onChange={e=>up(u.id,"limit",e.target.value.replace(/[^0-9]/g,""))}/></td>
-          <td><input className="mono" style={{width:60}} maxLength={4} value={u.rate} onChange={e=>up(u.id,"rate",e.target.value.replace(/[^0-9]/g,""))}/></td>
+          <td><input className="mono" style={{width:110}} maxLength={10} value={u.jukyu} onChange={e=>up(u.id,"jukyu",numIn(e.target.value))}/></td>
+          <td><input className="mono" style={{width:80}} maxLength={6} value={u.cityNo} onChange={e=>up(u.id,"cityNo",numIn(e.target.value))}/></td>
+          <td><input className="mono" style={{width:80}} value={u.limit} placeholder="0/9300/37200" onChange={e=>up(u.id,"limit",numIn(e.target.value))}/></td>
+          <td><input className="mono" style={{width:60}} maxLength={4} value={u.rate} onChange={e=>up(u.id,"rate",numIn(e.target.value))}/></td>
           <td><button className="mini" onClick={()=>del(u.id)}>🗑</button></td>
         </tr>)}
       </tbody>
@@ -640,7 +646,7 @@ function AttTab({users,ym,setYm,getMonth,setDay,office}){
     for(let d=1;d<=nd;d++)if(md[d])setDay(uid,d,{st:""});
   };
   if(!user)return <div className="note">先に「👥利用者」タブで利用者を登録してください。</div>;
-  const CB=({d,k,label})=><td style={{textAlign:"center"}}><input type="checkbox" checked={!!(md[d]&&md[d][k])} onChange={e=>setD(d,{[k]:e.target.checked?1:0})}/></td>;
+  const CB=(d,k)=><td key={k} style={{textAlign:"center"}}><input type="checkbox" checked={!!(md[d]&&md[d][k])} onChange={e=>setD(d,{[k]:e.target.checked?1:0})}/></td>;
   return <div>
     <div style={{display:"flex",gap:12,alignItems:"center",flexWrap:"wrap",marginBottom:8}}>
       <select value={uid||""} onChange={e=>setUid(Number(e.target.value))}>
@@ -672,12 +678,12 @@ function AttTab({users,ym,setYm,getMonth,setDay,office}){
               <option value="">－</option><option value="通">通所</option><option value="外">施設外</option>
               <option value="加">欠席(加算)</option><option value="欠">欠席</option><option value="在">在宅</option>
             </select></td>
-            <td><input className="mono" style={{width:52}} maxLength={4} value={v.in||""} placeholder="1000" onChange={e=>setD(d,{in:e.target.value.replace(/[^0-9]/g,"")})}/></td>
-            <td><input className="mono" style={{width:52}} maxLength={4} value={v.out||""} placeholder="1500" onChange={e=>setD(d,{out:e.target.value.replace(/[^0-9]/g,"")})}/></td>
-            <CB d={d} k="s1"/><CB d={d} k="s2"/><CB d={d} k="meal"/><CB d={d} k="iren"/><CB d={d} k="taiken"/>
-            <CB d={d} k="chiiki"/><CB d={d} k="shuchu"/><CB d={d} k="kinkyu"/><CB d={d} k="teiin"/>
-            <td><input className="mono" style={{width:40}} value={v.hou1||""} onChange={e=>setD(d,{hou1:e.target.value.replace(/[^0-9]/g,"")})}/></td>
-            <td><input className="mono" style={{width:40}} value={v.hou2||""} onChange={e=>setD(d,{hou2:e.target.value.replace(/[^0-9]/g,"")})}/></td>
+            <td><input className="mono" style={{width:52}} maxLength={4} value={v.in||""} placeholder="1000" onChange={e=>setD(d,{in:numIn(e.target.value)})}/></td>
+            <td><input className="mono" style={{width:52}} maxLength={4} value={v.out||""} placeholder="1500" onChange={e=>setD(d,{out:numIn(e.target.value)})}/></td>
+            {CB(d,"s1")}{CB(d,"s2")}{CB(d,"meal")}{CB(d,"iren")}{CB(d,"taiken")}
+            {CB(d,"chiiki")}{CB(d,"shuchu")}{CB(d,"kinkyu")}{CB(d,"teiin")}
+            <td><input className="mono" style={{width:40}} value={v.hou1||""} onChange={e=>setD(d,{hou1:numIn(e.target.value)})}/></td>
+            <td><input className="mono" style={{width:40}} value={v.hou2||""} onChange={e=>setD(d,{hou2:numIn(e.target.value)})}/></td>
             <td><input style={{width:160}} value={v.memo||""} onChange={e=>setD(d,{memo:e.target.value})}/></td>
           </tr>;
         })}
@@ -744,10 +750,10 @@ function ItemsTab({items,setItems,isA}){
       <tbody>
         {items.map(i=><tr key={i.id} style={{background:i.m?"#FFF3E0":i.e?"#E8F5E9":"#fff"}}>
           <td style={{textAlign:"center"}}><input type="checkbox" checked={!!i.e} onChange={e=>up(i.id,"e",e.target.checked)}/></td>
-          <td><input className="mono" style={{width:80}} maxLength={6} value={i.c||""} onChange={e=>up(i.id,"c",e.target.value.replace(/[^0-9]/g,""))}/></td>
+          <td><input className="mono" style={{width:80}} maxLength={6} value={i.c||""} onChange={e=>up(i.id,"c",numIn(e.target.value))}/></td>
           <td><input style={{width:"100%",minWidth:280}} value={i.n} onChange={e=>up(i.id,"n",e.target.value)}/></td>
-          <td><input className="mono" style={{width:70}} value={i.u||""} onChange={e=>up(i.id,"u",e.target.value.replace(/[^0-9-]/g,""))}/></td>
-          <td>{i.p==="率"?<input className="mono" style={{width:60}} value={i.pct||""} placeholder="8.1" onChange={e=>up(i.id,"pct",e.target.value.replace(/[^0-9.]/g,""))}/>:"－"}</td>
+          <td><input className="mono" style={{width:70}} value={i.u||""} onChange={e=>up(i.id,"u",numInSigned(e.target.value))}/></td>
+          <td>{i.p==="率"?<input className="mono" style={{width:60}} value={i.pct||""} placeholder="8.1" onChange={e=>up(i.id,"pct",numDec(e.target.value))}/>:"－"}</td>
           <td><select value={i.p} onChange={e=>up(i.id,"p",e.target.value)}>
             {PERS.map(pp=><option key={pp[0]} value={pp[0]}>{pp[0]}：{pp[1]}</option>)}
           </select></td>
@@ -806,7 +812,7 @@ function OutTab({users,ym,setYm,getMonth,items,getCnts,setCnt,office,buildJ121,b
                       <td className="mono">{it.c||"—"}</td><td>{it.n}</td>
                       <td style={{textAlign:"right"}}>{it.p==="率"?(it.pct||"?")+"%":it.u}</td>
                       <td style={{textAlign:"right"}}>{auto}</td>
-                      <td>{it.p==="率"?"—":<input className="mono" style={{width:50}} value={ov==null?"":ov} placeholder="自動" onChange={e=>setCnt(u.id,it.id,e.target.value.replace(/[^0-9]/g,""))}/>}</td>
+                      <td>{it.p==="率"?"—":<input className="mono" style={{width:50}} value={ov==null?"":ov} placeholder="自動" onChange={e=>setCnt(u.id,it.id,numIn(e.target.value))}/>}</td>
                       <td style={{textAlign:"right",fontWeight:row?"bold":"normal"}}>{row?fmt(row.svc):"0"}</td>
                     </tr>;
                   })}
