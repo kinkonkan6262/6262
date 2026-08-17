@@ -268,13 +268,31 @@ function App(){
   const [items46,setItems46]=useState(()=>mergeItems(load("items46",null),DEF46));
   const [counts,setCounts]=useState(()=>load("counts",{}));   // counts[ym][userId][itemId]
   const [ym,setYm]=useState(()=>monthKey(new Date()));
+  const [lastSave,setLastSave]=useState("");
+  const [sysErr,setSysErr]=useState("");
 
-  useEffect(()=>save("office",office),[office]);
-  useEffect(()=>save("users",users),[users]);
-  useEffect(()=>save("att",att),[att]);
-  useEffect(()=>save("items45",items45),[items45]);
-  useEffect(()=>save("items46",items46),[items46]);
-  useEffect(()=>save("counts",counts),[counts]);
+  /* 起動時の自己診断：保存(localStorage)が使えるか確認し、エラーは画面に表示する */
+  useEffect(()=>{
+    window.onerror=(msg,src,line)=>{setSysErr("画面エラー: "+String(msg)+"（行"+line+"）");};
+    try{
+      localStorage.setItem(LSP+"__test","1");
+      if(localStorage.getItem(LSP+"__test")!=="1")throw new Error("書込確認失敗");
+      localStorage.removeItem(LSP+"__test");
+    }catch(e){
+      setSysErr("このブラウザではデータ保存（localStorage）がブロックされています。入力内容が保存できません。ブラウザの設定（Cookieとサイトデータの許可／InPrivate・シークレットモードを使わない）をご確認ください。詳細: "+e.message);
+    }
+  },[]);
+  useEffect(()=>{
+    try{
+      save("office",office);save("users",users);save("att",att);
+      save("items45",items45);save("items46",items46);save("counts",counts);
+      localStorage.setItem(LSP+"__verify","1");
+      if(localStorage.getItem(LSP+"__verify")!=="1")throw new Error("書込確認失敗");
+      setLastSave(new Date().toLocaleTimeString());
+    }catch(e){
+      setSysErr("データの保存に失敗しました: "+e.message+"（ブラウザの保存領域がブロックされているか、容量不足の可能性があります）");
+    }
+  },[office,users,att,items45,items46,counts]);
 
   const isA=office.svcType==="45";
   const items=isA?items45:items46;
@@ -488,6 +506,8 @@ function App(){
       <div style={{fontSize:17,fontWeight:"bold"}}>🏛️ 国保連請求CSV作成ツール <span style={{fontSize:13}}>就労継続支援{isA?"A型":"B型"}（令和6年度報酬改定対応）v1.0</span></div>
       <div style={{fontSize:11,opacity:.9,marginTop:2}}>サービス提供実績記録票CSV（J611・実測検証済みレイアウト）／介護給付費等明細書CSV（J121）を生成します</div>
     </div>
+    {sysErr?<div className="warn" style={{marginBottom:8}}>❌ <b>{sysErr}</b><br/>この表示のスクリーンショットをお送りいただければ対応します。</div>
+      :<div style={{fontSize:11,color:"#33691E",marginBottom:6}}>💾 入力内容はこのブラウザ内に<b>自動保存</b>されます{lastSave?("（最終保存 "+lastSave+"）"):""}。保存ボタンは不要です。パソコン変更に備え「データ管理」タブでバックアップを取ってください。</div>}
     <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
       {[["office","🏢 設定"],["users","👥 利用者"],["att","📅 実績入力"],["items","💴 加算マスタ"],["out","📤 請求・CSV出力"],["check","🔍 CSV検査"],["data","💾 データ管理"]].map(([k,l])=>
         <button key={k} className={"tab"+(tab===k?" on":"")} onClick={()=>setTab(k)}>{l}</button>)}
