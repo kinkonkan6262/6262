@@ -10607,7 +10607,7 @@ function YoushikiTab({sel, names, allData, office, svcMode}) {
     {id:4,  code:"465815", name:"就継B重度者支援体制加算ⅡⅠ",       unit:"28",   perType:"日",  enabled:false},
     {id:5,  code:"468036", name:"就継B福祉専門職員配置等加算Ⅲ",     unit:"6",    perType:"日",  enabled:false},
     {id:6,  code:"463003", name:"就継B食事提供体制加算",             unit:"30",   perType:"食事",enabled:false},
-    {id:7,  code:"466001", name:"欠席時対応加算",                    unit:"94",   perType:"欠席",enabled:false},
+    {id:7,  code:"466001", name:"欠席時対応加算",                    unit:"94",   perType:"欠席",enabled:true},
   ];
   const defaultKasanItemsB = [
     {id:10, code:"465087", name:"就継B目標工賃達成加算",             unit:"10",   perType:"月1", enabled:false},
@@ -10742,8 +10742,19 @@ function YoushikiTab({sel, names, allData, office, svcMode}) {
     return add.length?[...saved,...add]:saved;
   };
 
+  // v7.84: 実績記録で「欠席加算」にした日を請求にも反映する。保存済みのサービスコード設定でも一度だけ
+  //        欠席時対応加算を有効化する。サービスコード未設定の種別は請求行が作れないため対象外。
+  //        一度きりなので、利用者が後からオフにした場合はその設定が残る。
+  const enableKessekiOnce=(list)=>{
+    try{
+      const flag=officeKey(KP+"kesseki_v784");
+      if(localStorage.getItem(flag))return list;
+      localStorage.setItem(flag,"1");
+      return list.map(i=>(i&&i.name==="欠席時対応加算"&&String(i.code||"").trim()!=="")?{...i,enabled:true}:i);
+    }catch(e){return list;}
+  };
   const [autoItems, setAutoItems] = useState(()=>{
-    try{return mergeItems(JSON.parse(localStorage.getItem(officeKey(KP+"auto"))||"null"),defaultAutoItems);}catch(e){return defaultAutoItems;}
+    try{return enableKessekiOnce(mergeItems(JSON.parse(localStorage.getItem(officeKey(KP+"auto"))||"null"),defaultAutoItems));}catch(e){return defaultAutoItems;}
   });
   const [kasanItems, setKasanItems] = useState(()=>{
     try{return mergeItems(JSON.parse(localStorage.getItem(officeKey(KP+"kasan"))||"null"),defaultKasanItems);}catch(e){return defaultKasanItems;}
@@ -11017,6 +11028,9 @@ function YoushikiTab({sel, names, allData, office, svcMode}) {
       const kyufuRate=parseInt(ku.rate||"900")||900;
       if(kyufuRate<500||kyufuRate>1000){
         warnings.push(name+"さん: 給付率の設定（"+kyufuRate+"）が通常の範囲（500〜1000）から外れています");
+      }
+      if(c.kasan>4){
+        warnings.push(name+"さん: 欠席時対応加算が"+c.kasan+"回あります（国保連の算定上限は月4回）。回数をご確認ください");
       }
       let meisaiItems=[]; let totalSvcUnits=0; let itemNo=1;
       [...autoItems.filter(i=>i.enabled),...kasanItems.filter(i=>i.enabled)].forEach(item=>{
