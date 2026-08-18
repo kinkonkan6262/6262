@@ -2971,6 +2971,9 @@ function YoushikiTab({names, allData, office}) {
   const [kasanCounts, setKasanCounts] = useState({});
   // ==== 国保連インターフェース設定 ====
   const CHIIKI_TANKA={"01":1140,"02":1112,"03":1084,"04":1070,"05":1070,"06":1056,"07":1042,"08":1000};
+  // 実績記録票CSV「サービス提供の状況」の既定コード。簡易入力ソフトの選択肢番号が事業所により異なるため設定で上書きできる。
+  const ST_DEFAULT={"通":"1","外":"2","欠":"3","在":"1"};
+  const ST_LABEL={"通":"通所","外":"施設外就労","欠":"欠席","在":"在宅"};
   const [khSet,setKhSet]=useState(()=>{
     try{return JSON.parse(localStorage.getItem(officeKey("y2_kh_s"))||"null")||{prefNo:"45",cityNo:"",chiikiCode:"08",mediaType:"7"};}
     catch(e){return {prefNo:"45",cityNo:"",chiikiCode:"08",mediaType:"7"};}
@@ -3034,7 +3037,11 @@ function YoushikiTab({names, allData, office}) {
     const cityNo6=cityNo.padStart(6,"0");
     const esc=v=>'"'+String(v==null?"":v).replace(/"/g,'""')+'"';
     const REC01_LEN=174, REC02_LEN=115; // 1行の総項目数（先頭の 2,通番 を含む）
-    const ST={"通":"1","外":"2","欠":"3","加":"3"};
+    // サービス提供の状況コード。簡易入力ソフトの選択肢番号に合わせて『⚙️ 国保連設定』で変更できる。
+    // 既定値は取込実測で確認済みの 通所=1 / 施設外=2 / 欠席=3。在宅は専用番号が不明なため既定は通所と同じ1。
+    const SC=khSet.stCode||{};
+    const stCodeOf=k=>String((SC[k]!==undefined&&SC[k]!=="")?SC[k]:ST_DEFAULT[k]);
+    const ST={"通":stCodeOf("通"),"外":stCodeOf("外"),"欠":stCodeOf("欠"),"加":stCodeOf("欠"),"在":stCodeOf("在")};
     const fmtT=t=>{const d=String(t||"").replace(/[^0-9]/g,"");return d?d.padStart(4,"0"):"";};
     const memoSafe=m=>String(m||"").replace(/,/g,"、").replace(/[\r\n"]/g," ").trim();
     const nd=new Date(y2,m2,0).getDate();
@@ -3064,15 +3071,16 @@ function YoushikiTab({names, allData, office}) {
         if(!v||!v.st)continue;
         const st=ST[v.st];
         if(!st)continue;
-        days.push({d,v,st});
+        days.push({d,v,st,k:v.st});
       }
       if(days.length===0)return;
       targetCount++;
-      const useDays=days.filter(e=>e.st!=="3").length;
-      const sougei=days.reduce((a,e)=>a+(e.st!=="3"&&e.v.s1?1:0)+(e.st!=="3"&&e.v.s2?1:0),0);
-      const meals=days.filter(e=>e.st!=="3"&&e.v.meal).length;
-      const outDays=days.filter(e=>e.st==="2").length;
-      const cnt=k=>days.filter(e=>e.st!=="3"&&e.v[k]).length;
+      const isAbs=e=>e.k==="欠"||e.k==="加"; // 欠席日はサービス提供実績に数えない
+      const useDays=days.filter(e=>!isAbs(e)).length;
+      const sougei=days.reduce((a,e)=>a+(!isAbs(e)&&e.v.s1?1:0)+(!isAbs(e)&&e.v.s2?1:0),0);
+      const meals=days.filter(e=>!isAbs(e)&&e.v.meal).length;
+      const outDays=days.filter(e=>e.k==="外").length;
+      const cnt=k=>days.filter(e=>!isAbs(e)&&e.v[k]).length;
       const houC1=cnt("hou1"),houC2=cnt("hou2"),irenC=cnt("iren"),taikenC=cnt("taiken"),
             chiikiC=cnt("chiiki"),kinkyuC=cnt("kinkyu"),shuchuC=cnt("shuchu"),teiinC=cnt("teiin");
       // 基本情報レコード(01) — 位置は1始まり表記（配列は-1）
@@ -3096,7 +3104,7 @@ function YoushikiTab({names, allData, office}) {
         f[9]=String(i+1);                    // 10: 提供通番
         f[10]=String(e.d).padStart(2,"0");   // 11: 日
         f[11]=e.st;                          // 12: サービス提供の状況
-        if(e.st!=="3"){
+        if(!isAbs(e)){
           const inT=fmtT(e.v.in), outT=fmtT(e.v.out);
           if(!inT||!outT){
             warnings.push(name+"さん "+m2+"月"+e.d+"日: 開始時間または終了時間が未入力です");
@@ -3110,7 +3118,7 @@ function YoushikiTab({names, allData, office}) {
           const numOnly=x=>String(x==null?"":x).replace(/[^0-9]/g,"");
           if(e.v.hou1)f[28]=numOnly(e.v.hou1);// 29: 訪問支援特別加算(提供時間数)
           if(e.v.hou2)f[29]=numOnly(e.v.hou2);// 30: 訪問支援特別加算(算定時間数)
-          if(e.st==="2")f[30]="1";           // 31: 施設外支援
+          if(e.k==="外")f[30]="1";           // 31: 施設外支援
           if(e.v.meal)f[33]="1";             // 34: 食事提供加算
           if(e.v.iren)f[75]="1";             // 76: 医療連携体制加算
           if(e.v.taiken)f[84]="1";           // 85: 体験利用支援加算
@@ -3376,6 +3384,20 @@ function YoushikiTab({names, allData, office}) {
               <option value="08">08：その他（10.00円）</option>
             </select>
           </div>
+        </div>
+        <div style={{fontWeight:"bold",color:"#880E4F",fontSize:12,marginBottom:6}}>📝 サービス提供の状況コード（実績記録票CSV）</div>
+        <div style={{fontSize:11,color:"#880E4F",marginBottom:6,lineHeight:1.5}}>
+          簡易入力ソフトの「サービス提供の状況」プルダウンの番号を入力してください。番号が合っていないと、その日の時間・送迎などが取り込まれません。
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:10,marginBottom:12}}>
+          {["通","外","欠","在"].map(k=>(
+            <div key={k}>
+              <div style={{fontSize:11,fontWeight:"bold",color:"#880E4F",marginBottom:3}}>{ST_LABEL[k]}</div>
+              <input value={(khSet.stCode||{})[k]!==undefined?(khSet.stCode||{})[k]:ST_DEFAULT[k]}
+                onChange={e=>setKhSet(p=>({...p,stCode:{...(p.stCode||{}),[k]:e.target.value.replace(/[^0-9]/g,"")}}))}
+                placeholder={"既定: "+ST_DEFAULT[k]} style={inputStyle}/>
+            </div>
+          ))}
         </div>
         <div style={{fontWeight:"bold",color:"#880E4F",fontSize:12,marginBottom:6}}>📋 利用者ごとの国保連設定（受給者証番号があり実績がある方）</div>
         <div style={{overflowX:"auto"}}>
