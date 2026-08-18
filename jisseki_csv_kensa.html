@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>実績記録票CSV 検査・診断ツール</title>
+<style>
+:root{--ink:#1a1a1a;--sub:#5a6470;--line:#d8dee6;--bg:#f5f7fa;--card:#fff;
+      --blue:#1565c0;--green:#1b5e20;--red:#b71c1c;--amber:#8a6100;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+     font-family:"Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",sans-serif;font-size:14px;line-height:1.7}
+header{background:#0d3c61;color:#fff;padding:16px 20px}
+header h1{margin:0;font-size:18px}
+header p{margin:4px 0 0;font-size:12px;opacity:.85}
+main{max-width:1180px;margin:0 auto;padding:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:16px;margin-bottom:16px}
+.card h2{margin:0 0 4px;font-size:15px;color:#0d3c61}
+.card .lead{margin:0 0 12px;font-size:12px;color:var(--sub)}
+.drop{border:2px dashed #b6c2d1;border-radius:8px;padding:22px;text-align:center;color:var(--sub);
+      background:#fbfcfe;cursor:pointer;font-size:13px}
+.drop.on{border-color:var(--blue);background:#eef5fd;color:var(--blue)}
+label{display:inline-block;font-size:12px;color:var(--sub);margin:0 0 2px}
+input[type=text],input[type=number],select{padding:6px 8px;border:1px solid var(--line);border-radius:5px;font-size:13px;width:100%}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-bottom:12px}
+button{border:0;border-radius:6px;padding:9px 16px;color:#fff;font-size:13px;font-weight:bold;cursor:pointer;margin:4px 6px 4px 0}
+.b-blue{background:var(--blue)}.b-green{background:var(--green)}.b-red{background:var(--red)}.b-gray{background:#5a6470}
+button:disabled{background:#b6c2d1;cursor:not-allowed}
+table{border-collapse:collapse;width:100%;font-size:12px;margin-top:8px}
+th,td{border:1px solid var(--line);padding:4px 7px;text-align:left;vertical-align:top}
+th{background:#eef2f7;white-space:nowrap}
+td.num{text-align:right;white-space:nowrap;color:var(--sub);width:70px}
+tr.diff td{background:#fdecec}
+tr.same td{color:#7a8592}
+.scroll{max-height:460px;overflow:auto;border:1px solid var(--line);border-radius:6px;margin-top:8px}
+.note{background:#fff8e1;border-left:4px solid #f0b429;padding:10px 12px;font-size:12px;border-radius:0 5px 5px 0;margin:10px 0}
+.warn{background:#fdecec;border-left:4px solid var(--red);padding:10px 12px;font-size:12px;border-radius:0 5px 5px 0;margin:10px 0}
+.ok{background:#e8f5e9;border-left:4px solid var(--green);padding:10px 12px;font-size:12px;border-radius:0 5px 5px 0;margin:10px 0}
+.tag{display:inline-block;background:#eef2f7;border:1px solid var(--line);border-radius:4px;
+     padding:1px 6px;font-size:11px;margin-right:4px;color:var(--sub)}
+.mono{font-family:"SFMono-Regular",Consolas,Menlo,monospace}
+ol,ul{margin:6px 0 6px 20px;padding:0}
+li{margin:3px 0}
+details{margin:6px 0}
+summary{cursor:pointer;font-size:12px;color:var(--blue)}
+.small{font-size:11px;color:var(--sub)}
+</style>
+</head>
+<body>
+<header>
+  <h1>実績記録票CSV 検査・診断ツール</h1>
+  <p>就労継続支援B型／国保連・電子請求受付システム 取込用CSV（J611）の中身を読む・見本と比べる・取込テスト用ファイルを作る</p>
+</header>
+<main>
+
+<div class="card">
+  <h2>このツールの使い方（3ステップ）</h2>
+  <p class="lead">「エラーは出ないのに日別データが登録されない」を、推測ではなく実測で切り分けます。すべてブラウザ内で動き、ファイルはどこにも送信されません。</p>
+  <ol>
+    <li><b>③の「取込テスト用CSV」を出力</b> → 電子請求受付システム（簡易入力システム）で取り込む。</li>
+    <li><b>実績記録票の画面で「どの日が登録されたか」を見る</b> → 出力時の対応表と突き合わせる。登録された日の条件が正解。</li>
+    <li>手入力した実績記録票を書き出した<b>見本CSVが手に入ったら②で比較</b> → 項目位置のズレが一発で分かります。</li>
+  </ol>
+  <div class="note"><b>テスト前の注意：</b>取込テストは実データを上書きする可能性があります。<u>テスト後は取り込んだ実績記録票を削除し、正しいデータを入れ直してください。</u>可能なら請求前の月・1名だけで実施してください。</div>
+</div>
+
+<!-- ① ビューア -->
+<div class="card">
+  <h2>① CSVを読む（中身をそのまま表示）</h2>
+  <p class="lead">Shift-JIS でもUTF-8でも読めます。Excelで開かずにここへドロップしてください（Excelは先頭0や空欄を壊します）。</p>
+  <div class="drop" id="dropV">ここにCSVをドロップ／クリックして選択</div>
+  <input type="file" id="fileV" style="display:none" accept=".csv,.CSV,.txt">
+  <div id="outV"></div>
+</div>
+
+<!-- ② 比較 -->
+<div class="card">
+  <h2>② 見本CSVと自作CSVを比較する</h2>
+  <p class="lead">左に<b>見本（取込に成功したファイル・システムが書き出したファイル）</b>、右に<b>自作ファイル</b>。同じ種類のレコード同士を順番に対応づけ、項目ごとに差分を出します。</p>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+    <div>
+      <label>見本（正解）ファイル</label>
+      <div class="drop" id="dropA">ドロップ／クリック</div>
+      <input type="file" id="fileA" style="display:none" accept=".csv,.CSV,.txt">
+      <div class="small" id="nameA"></div>
+    </div>
+    <div>
+      <label>自作ファイル</label>
+      <div class="drop" id="dropB">ドロップ／クリック</div>
+      <input type="file" id="fileB" style="display:none" accept=".csv,.CSV,.txt">
+      <div class="small" id="nameB"></div>
+    </div>
+  </div>
+  <button class="b-blue" id="btnDiff" disabled>比較する</button>
+  <label style="margin-left:8px"><input type="checkbox" id="chkSame"> 同じ項目も表示する</label>
+  <div id="outD"></div>
+</div>
+
+<!-- ③ 値さがし -->
+<div class="card">
+  <h2>③ 「この値は何番目の項目か」を探す</h2>
+  <p class="lead">①か②で読み込んだファイルの中から、指定した値（例：<span class="mono">0930</span>、<span class="mono">15</span>）が入っている項目番号を全部探します。見本ファイルで開始時間を探せば、正しい項目番号が確定します。</p>
+  <div class="grid">
+    <div><label>探す値</label><input type="text" id="findVal" placeholder="0930"></div>
+    <div><label>対象</label><select id="findTgt"><option value="V">①で読んだファイル</option><option value="A">②の見本ファイル</option><option value="B">②の自作ファイル</option></select></div>
+  </div>
+  <button class="b-gray" id="btnFind">探す</button>
+  <div id="outF"></div>
+</div>
+
+<!-- ④ プローブ -->
+<div class="card">
+  <h2>④ 取込テスト用CSV（プローブ）を作る</h2>
+  <p class="lead">1名分・数日だけの検証ファイルです。<b>1日ごとに条件を1つだけ変えて</b>あるので、取り込んだあと「どの日が登録されたか」を見るだけで、登録されない原因が特定できます。</p>
+  <div class="grid">
+    <div><label>事業所番号</label><input type="text" id="pOff" placeholder="4510000000"></div>
+    <div><label>市町村番号（6桁）</label><input type="text" id="pCity" placeholder="452011"></div>
+    <div><label>受給者証番号（10桁）</label><input type="text" id="pJukyu" placeholder="0000000001"></div>
+    <div><label>サービス提供年月</label><input type="text" id="pYm" placeholder="202608"></div>
+    <div><label>様式種別番号</label><input type="text" id="pYoshiki" value="1701"></div>
+    <div><label>交換情報識別番号</label><input type="text" id="pKoukan" value="J611"></div>
+    <div><label>テスト開始日（この日から連番）</label><input type="number" id="pDay" value="1" min="1" max="20"></div>
+    <div><label>開始時間／終了時間</label><input type="text" id="pTime" value="0930-1530"></div>
+    <div><label>基本情報(01)の項目数</label><input type="number" id="pLen1" value="174"></div>
+    <div><label>日別情報(02)の項目数</label><input type="number" id="pLen2" value="115"></div>
+  </div>
+  <div class="note">
+    <b>テストの種類</b>
+    <ul>
+      <li><b>A：原因の切り分け</b>（状況コード／時間の有無／クォート／末尾の0／加算フラグ）を9日分</li>
+      <li><b>B：開始時間の項目位置さがし</b>（項目14〜19番に1日ずつ時間を置いて、どこが正解か探る）</li>
+    </ul>
+  </div>
+  <button class="b-green" id="btnProbeA">A：切り分けCSVを出力</button>
+  <button class="b-blue" id="btnProbeB">B：時間の位置さがしCSVを出力</button>
+  <button class="b-gray" id="btnMemo" disabled>対応表をテキスト保存</button>
+  <div id="outP"></div>
+</div>
+
+
+<!-- ⑤ 変換 -->
+<div class="card">
+  <h2>⑤ 自作CSVを直して出し直す（変換）</h2>
+  <p class="lead">アプリが出力した <span class="mono">実績記録票_YYYYMM_取込用.csv</span> をそのまま読み込み、④のテストで分かった直し方を適用して出し直します。<b>文字コードは元のまま（Shift-JISはShift-JISのまま）</b>保存するので、備考の日本語も壊れません。アプリの改修を待たずに今月分を作り直せます。</p>
+  <div class="drop" id="dropC">ここに自作CSVをドロップ／クリックして選択</div>
+  <input type="file" id="fileC" style="display:none" accept=".csv,.CSV,.txt">
+  <div class="small" id="nameC"></div>
+  <div style="margin-top:10px">
+    <label><input type="checkbox" id="cSt1"> 通所日（状況コード1）の「サービス提供の状況」欄を空欄にする</label><br>
+    <label><input type="checkbox" id="cSt2"> 施設外日（状況コード2）の「サービス提供の状況」欄を空欄にする（施設外フラグは残す）</label><br>
+    <label><input type="checkbox" id="cQuote"> ダブルクォートを全部外す</label><br>
+    <label><input type="checkbox" id="cTail"> 最終項目の「0」を空欄にする</label><br>
+    <label><input type="checkbox" id="cNoTime"> 開始・終了時間を全部消す（切り分け用）</label><br>
+    <label><input type="checkbox" id="cMove"> 開始・終了時間を項目
+      <input type="number" id="cFrom" value="16" style="width:60px;display:inline-block"> 番から
+      <input type="number" id="cTo" value="14" style="width:60px;display:inline-block"> 番へ移動する</label><br>
+    <label><input type="checkbox" id="cYoshiki"> 様式種別番号を
+      <input type="text" id="cYoshikiVal" value="1601" style="width:80px;display:inline-block"> に置き換える</label><br>
+    <label><input type="checkbox" id="cPad"> 事業所番号を10桁（右側を半角スペース埋め）にそろえる</label>
+  </div>
+  <button class="b-green" id="btnConv" disabled>変換して保存</button>
+  <div id="outC"></div>
+</div>
+
+<div class="card">
+  <h2>取込テストの結果の読み方</h2>
+  <table>
+    <tr><th>取込後の状態</th><th>分かること／次の一手</th></tr>
+    <tr><td>Aテストで <b>「状況欄=空欄・時間あり」の日だけ登録された</b></td><td>通所日に状況コード「1」を入れているのが原因。アプリ側で通所日の状況欄を空欄にすれば直ります。</td></tr>
+    <tr><td>Aテストで <b>時間を消した日だけ登録された</b></td><td>時間の項目位置か書式が違う。→ Bテストへ。</td></tr>
+    <tr><td>Aテストで <b>クォートなしの日だけ登録された</b></td><td>ダブルクォート付きの数値を受け付けていない。数値項目を裸で出力すれば直ります。</td></tr>
+    <tr><td>Aテストで <b>末尾に0を置かない日だけ登録された</b></td><td>最終項目への「0」埋めが余計。削除すれば直ります。</td></tr>
+    <tr><td>Aテストで <b>加算フラグなしの日だけ登録された</b></td><td>送迎・食事の項目位置が別の必須項目とぶつかっている。</td></tr>
+    <tr><td>Bテストで <b>ある1日だけ時間つきで登録された</b></td><td>その日に使った項目番号が正しい開始／終了時間の位置です。</td></tr>
+    <tr><td><b>どの日も登録されない</b>（欠席日すら入らない）</td><td>受給者・様式種別番号・年月のどれかが違う。様式種別番号を 1601 / 1401 に変えて再出力し、1つずつ試してください。</td></tr>
+  </table>
+</div>
+
+<script>
+"use strict";
+/* ============ CSV読み込み・パース ============ */
+function decodeBuf(buf){
+  var u8=new Uint8Array(buf);
+  if(u8.length>=3&&u8[0]===0xEF&&u8[1]===0xBB&&u8[2]===0xBF){
+    return {text:new TextDecoder("utf-8").decode(u8.subarray(3)),enc:"UTF-8(BOM付き)"};
+  }
+  try{ return {text:new TextDecoder("utf-8",{fatal:true}).decode(u8),enc:"UTF-8"}; }
+  catch(e){
+    try{ return {text:new TextDecoder("shift_jis").decode(u8),enc:"Shift-JIS"}; }
+    catch(e2){ return {text:new TextDecoder("utf-8").decode(u8),enc:"不明"}; }
+  }
+}
+function splitLine(line){
+  var out=[],cur="",q=false;
+  for(var i=0;i<line.length;i++){
+    var c=line[i];
+    if(q){
+      if(c==='"'){ if(line[i+1]==='"'){cur+='"';i++;} else {q=false;} }
+      else cur+=c;
+    }else{
+      if(c==='"') q=true;
+      else if(c===",") {out.push(cur);cur="";}
+      else cur+=c;
+    }
+  }
+  out.push(cur);
+  return out;
+}
+function parseCsv(text){
+  var lines=text.split(/\r\n|\r|\n/).filter(function(l){return l.trim()!=="";});
+  return lines.map(function(l,i){
+    var f=splitLine(l);
+    return {no:i+1,raw:l,f:f,kind:f[0]||"",type:(f[3]||""),koukan:(f[2]||"")};
+  });
+}
+function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+function kindName(r){
+  if(r.kind==="1")return "コントロールレコード";
+  if(r.kind==="3")return "エンドレコード";
+  if(r.kind==="2")return "データレコード("+(r.type||"?")+")";
+  return "不明";
+}
+function bindDrop(dropEl,fileEl,cb){
+  dropEl.addEventListener("click",function(){fileEl.click();});
+  fileEl.addEventListener("change",function(){ if(fileEl.files[0]) read(fileEl.files[0]); });
+  ["dragenter","dragover"].forEach(function(ev){
+    dropEl.addEventListener(ev,function(e){e.preventDefault();dropEl.classList.add("on");});
+  });
+  ["dragleave","drop"].forEach(function(ev){
+    dropEl.addEventListener(ev,function(e){e.preventDefault();dropEl.classList.remove("on");});
+  });
+  dropEl.addEventListener("drop",function(e){
+    e.preventDefault();
+    var f=e.dataTransfer.files[0]; if(f) read(f);
+  });
+  function read(file){
+    var fr=new FileReader();
+    fr.onload=function(){
+      var d=decodeBuf(fr.result);
+      cb({name:file.name,enc:d.enc,size:file.size,recs:parseCsv(d.text),text:d.text});
+    };
+    fr.readAsArrayBuffer(file);
+  }
+}
+
+/* ============ ① ビューア ============ */
+var DATA={V:null,A:null,B:null};
+bindDrop(document.getElementById("dropV"),document.getElementById("fileV"),function(d){
+  DATA.V=d; renderViewer(d);
+});
+function renderViewer(d){
+  var h='<div class="ok"><b>'+esc(d.name)+'</b> を読みました　'
+       +'<span class="tag">文字コード '+esc(d.enc)+'</span>'
+       +'<span class="tag">'+d.recs.length+'行</span>'
+       +'<span class="tag">'+d.size+'バイト</span></div>';
+  var ctrl=d.recs.filter(function(r){return r.kind==="1";}).length;
+  var data=d.recs.filter(function(r){return r.kind==="2";}).length;
+  var end=d.recs.filter(function(r){return r.kind==="3";}).length;
+  h+='<div class="small">コントロール '+ctrl+' ／ データ '+data+' ／ エンド '+end+'</div>';
+  h+='<div class="scroll"><table><tr><th>行</th><th>種類</th><th>項目数</th><th>先頭の内容</th></tr>';
+  d.recs.forEach(function(r){
+    h+='<tr><td class="num">'+r.no+'</td><td>'+esc(kindName(r))+'</td><td class="num">'+r.f.length+'</td>'
+      +'<td class="mono">'+esc(r.f.slice(0,12).join(" | "))+'</td></tr>';
+  });
+  h+='</table></div>';
+  h+='<details><summary>データレコードを項目番号つきで全部見る（空欄以外）</summary><div class="scroll"><table>'
+    +'<tr><th>行</th><th>項目番号</th><th>値</th></tr>';
+  d.recs.forEach(function(r){
+    if(r.kind!=="2")return;
+    r.f.forEach(function(v,i){
+      if(String(v).trim()==="")return;
+      h+='<tr><td class="num">'+r.no+'</td><td class="num">'+(i+1)+'</td><td class="mono">'+esc(v)+'</td></tr>';
+    });
+  });
+  h+='</table></div></details>';
+  document.getElementById("outV").innerHTML=h;
+}
+
+/* ============ ② 比較 ============ */
+bindDrop(document.getElementById("dropA"),document.getElementById("fileA"),function(d){
+  DATA.A=d; document.getElementById("nameA").textContent=d.name+"（"+d.enc+"・"+d.recs.length+"行）";
+  document.getElementById("btnDiff").disabled=!(DATA.A&&DATA.B);
+});
+bindDrop(document.getElementById("dropB"),document.getElementById("fileB"),function(d){
+  DATA.B=d; document.getElementById("nameB").textContent=d.name+"（"+d.enc+"・"+d.recs.length+"行）";
+  document.getElementById("btnDiff").disabled=!(DATA.A&&DATA.B);
+});
+document.getElementById("btnDiff").addEventListener("click",function(){
+  var showSame=document.getElementById("chkSame").checked;
+  var A=DATA.A.recs,B=DATA.B.recs;
+  function group(recs){
+    var g={};
+    recs.forEach(function(r){
+      var k=r.kind==="2"?("データ"+(r.type||"?")):(r.kind==="1"?"コントロール":"エンド");
+      (g[k]=g[k]||[]).push(r);
+    });
+    return g;
+  }
+  var ga=group(A),gb=group(B);
+  var keys={};
+  Object.keys(ga).forEach(function(k){keys[k]=1;});
+  Object.keys(gb).forEach(function(k){keys[k]=1;});
+  var h="";
+  Object.keys(keys).forEach(function(k){
+    var la=ga[k]||[],lb=gb[k]||[];
+    h+='<h3 style="font-size:13px;margin:14px 0 2px">'+esc(k)+'　<span class="tag">見本 '+la.length+'件</span><span class="tag">自作 '+lb.length+'件</span></h3>';
+    if(la.length!==lb.length)h+='<div class="warn">レコード件数が違います。順番の対応づけがずれる可能性があります。</div>';
+    var n=Math.max(la.length,lb.length);
+    for(var i=0;i<n;i++){
+      var ra=la[i],rb=lb[i];
+      if(!ra||!rb){
+        h+='<div class="warn">'+(i+1)+'件目：'+(ra?"自作側":"見本側")+'にレコードがありません。</div>';
+        continue;
+      }
+      var lenWarn=(ra.f.length!==rb.f.length)
+        ?'<div class="warn"><b>項目数が違います：</b>見本 '+ra.f.length+' 項目 ／ 自作 '+rb.f.length+' 項目。これだけで取込側の項目の読み位置が全部ずれます。</div>':'';
+      var rows="",diffN=0;
+      var m=Math.max(ra.f.length,rb.f.length);
+      for(var j=0;j<m;j++){
+        var va=ra.f[j]===undefined?"（項目なし）":ra.f[j];
+        var vb=rb.f[j]===undefined?"（項目なし）":rb.f[j];
+        var same=(String(va)===String(vb));
+        if(same&&!showSame)continue;
+        if(!same)diffN++;
+        rows+='<tr class="'+(same?"same":"diff")+'"><td class="num">'+(j+1)+'</td>'
+             +'<td class="mono">'+esc(va)+'</td><td class="mono">'+esc(vb)+'</td></tr>';
+      }
+      h+='<details'+(i<3?' open':'')+'><summary>'+(i+1)+'件目を見る（違う項目 '+diffN+'件）</summary>'
+        +lenWarn+'<div class="scroll"><table><tr><th>項目番号</th><th>見本</th><th>自作</th></tr>'+rows+'</table></div></details>';
+    }
+  });
+  document.getElementById("outD").innerHTML=h;
+});
+
+/* ============ ③ 値さがし ============ */
+document.getElementById("btnFind").addEventListener("click",function(){
+  var tgt=document.getElementById("findTgt").value;
+  var val=document.getElementById("findVal").value.trim();
+  var d=DATA[tgt];
+  if(!d){document.getElementById("outF").innerHTML='<div class="warn">対象のファイルがまだ読み込まれていません。</div>';return;}
+  if(val===""){document.getElementById("outF").innerHTML='<div class="warn">探す値を入力してください。</div>';return;}
+  var hits=[];
+  d.recs.forEach(function(r){
+    r.f.forEach(function(v,i){ if(String(v).trim()===val) hits.push({no:r.no,kind:kindName(r),idx:i+1}); });
+  });
+  var h='<div class="'+(hits.length?"ok":"warn")+'">「'+esc(val)+'」は '+hits.length+' か所で見つかりました。</div>';
+  if(hits.length){
+    h+='<div class="scroll"><table><tr><th>行</th><th>種類</th><th>項目番号</th></tr>';
+    hits.forEach(function(x){h+='<tr><td class="num">'+x.no+'</td><td>'+esc(x.kind)+'</td><td class="num">'+x.idx+'</td></tr>';});
+    h+='</table></div>';
+  }
+  document.getElementById("outF").innerHTML=h;
+});
+
+/* ============ ④ プローブCSV生成 ============ */
+var LAST_MEMO="";
+function q(v){return '"'+String(v==null?"":v).replace(/"/g,'""')+'"';}
+function cfg(){
+  var t=(document.getElementById("pTime").value||"0930-1530").split("-");
+  return {
+    off:(document.getElementById("pOff").value||"").trim(),
+    city:((document.getElementById("pCity").value||"").trim()).padStart(6,"0"),
+    jukyu:((document.getElementById("pJukyu").value||"").trim()).padStart(10,"0"),
+    ym:(document.getElementById("pYm").value||"").trim(),
+    yoshiki:(document.getElementById("pYoshiki").value||"").trim(),
+    koukan:(document.getElementById("pKoukan").value||"J611").trim(),
+    day0:parseInt(document.getElementById("pDay").value)||1,
+    tin:(t[0]||"0930").trim(), tout:(t[1]||"1530").trim(),
+    len1:parseInt(document.getElementById("pLen1").value)||174,
+    len2:parseInt(document.getElementById("pLen2").value)||115
+  };
+}
+function validate(c){
+  var e=[];
+  if(!c.off)e.push("事業所番号");
+  if(!/^[0-9]{6}$/.test(c.city))e.push("市町村番号(6桁)");
+  if(!/^[0-9]{10}$/.test(c.jukyu))e.push("受給者証番号(10桁)");
+  if(!/^[0-9]{6}$/.test(c.ym))e.push("サービス提供年月(YYYYMM)");
+  if(!c.yoshiki)e.push("様式種別番号");
+  return e;
+}
+function mkRec(c,recType,len){
+  var f=new Array(len).fill("");
+  f[0]="2"; f[2]=c.koukan; f[3]=recType; f[4]=c.ym; f[5]=c.city; f[6]=c.off; f[7]=c.jukyu; f[8]=c.yoshiki;
+  return f;
+}
+/* opt: {tail0:bool, quote:bool} */
+function toLine(f,seq,opt){
+  var g=f.slice();
+  g[1]=String(seq);
+  if(opt.tail0)g[g.length-1]="0";
+  return opt.quote
+    ? (g[0]+","+g[1]+","+g.slice(2).map(q).join(","))
+    : g.join(",");
+}
+function buildProbe(mode){
+  var c=cfg(); var bad=validate(c);
+  if(bad.length){ document.getElementById("outP").innerHTML='<div class="warn">次の項目を入力してください：'+bad.join("、")+'</div>'; return; }
+  var cases=[];
+  if(mode==="A"){
+    cases=[
+      {t:"対照：欠席（状況3・時間なし）※これまで登録できていた形",  st:"3", time:false, flags:false, tail0:true,  quote:true},
+      {t:"現行方式：状況1（通所）＋時間あり",                        st:"1", time:true,  flags:false, tail0:true,  quote:true},
+      {t:"状況を空欄にして時間あり",                                  st:"",  time:true,  flags:false, tail0:true,  quote:true},
+      {t:"状況1のまま時間を入れない",                                 st:"1", time:false, flags:false, tail0:true,  quote:true},
+      {t:"最小構成：状況も時間も入れない",                            st:"",  time:false, flags:false, tail0:true,  quote:true},
+      {t:"状況1＋時間あり／末尾の0を付けない",                        st:"1", time:true,  flags:false, tail0:false, quote:true},
+      {t:"状況1＋時間あり／ダブルクォートを付けない",                 st:"1", time:true,  flags:false, tail0:true,  quote:false},
+      {t:"状況2（施設外）＋施設外フラグ＋時間あり",                   st:"2", time:true,  flags:false, tail0:true,  quote:true, shisetsugai:true},
+      {t:"状況1＋時間あり＋送迎往復・食事フラグあり",                 st:"1", time:true,  flags:true,  tail0:true,  quote:true}
+    ];
+  }else{
+    [14,15,16,17,18,19].forEach(function(pos){
+      cases.push({t:"開始時間を項目"+pos+"番／終了時間を項目"+(pos+1)+"番に置く（状況は空欄）",
+                  st:"", time:true, flags:false, tail0:true, quote:true, tpos:pos});
+    });
+    cases.unshift({t:"対照：欠席（状況3・時間なし）", st:"3", time:false, flags:false, tail0:true, quote:true});
+  }
+  var lines=[],seq=2,memo=[],useDays=0;
+  var days=cases.map(function(_,i){return c.day0+i;});
+  cases.forEach(function(cs){ if(cs.st!=="3")useDays++; });
+
+  var b=mkRec(c,"01",c.len1);
+  b[38]=String(useDays);                                   // 39: 算定日数
+  var shisetsugaiN=cases.filter(function(x){return x.shisetsugai;}).length;
+  if(shisetsugaiN)b[54]=String(shisetsugaiN);              // 55: 施設外支援 当月
+  var sougeiN=cases.filter(function(x){return x.flags;}).length*2;
+  if(sougeiN)b[35]=String(sougeiN);                        // 36: 送迎加算
+  var mealN=cases.filter(function(x){return x.flags;}).length;
+  if(mealN)b[46]=String(mealN);                            // 47: 食事提供加算
+  lines.push(toLine(b,seq++,{tail0:true,quote:true}));
+
+  cases.forEach(function(cs,i){
+    var d=days[i];
+    var f=mkRec(c,"02",c.len2);
+    f[9]=String(i+1);                                      // 10: 提供通番
+    f[10]=String(d).padStart(2,"0");                       // 11: 日
+    f[11]=cs.st;                                           // 12: サービス提供の状況
+    if(cs.time){
+      var p=(cs.tpos||16)-1;                               // 既定16/17番
+      f[p]=c.tin; f[p+1]=c.tout;
+    }
+    if(cs.shisetsugai)f[30]="1";                           // 31: 施設外支援
+    if(cs.flags){ f[22]="1"; f[23]="1"; f[33]="1"; }       // 23/24: 送迎往復, 34: 食事提供加算
+    lines.push(toLine(f,seq++,{tail0:cs.tail0,quote:cs.quote}));
+    memo.push({day:d,desc:cs.t});
+  });
+
+  var ctrl=[1,1,0,lines.length,c.koukan.substring(0,3),0,c.off,0,1,c.ym,0].join(",");
+  var all=[ctrl].concat(lines).concat(["3,"+seq]).join("\r\n")+"\r\n";
+
+  var nonAscii=all.split("").filter(function(ch){return ch.charCodeAt(0)>127;});
+  var fname="実績記録票_取込テスト"+mode+"_"+c.ym+".csv";
+  var blob=new Blob([all],{type:"text/plain;charset=us-ascii"});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement("a"); a.href=url; a.download=fname; a.click();
+  setTimeout(function(){URL.revokeObjectURL(url);},3000);
+
+  var h='<div class="ok"><b>'+esc(fname)+'</b> を出力しました（'+lines.length+'レコード）。'
+       +(nonAscii.length?'':'半角英数字のみなので、Shift-JISでもUTF-8でも中身は同一です。')+'</div>';
+  h+='<div class="note"><b>この後の手順：</b>①このファイルを電子請求受付システムの【実績記録票取込】で取り込む　'
+    +'②実績記録票の画面を開き、下の表のどの日が登録されたかを確認　'
+    +'③登録された日の条件が「正解」です。<u>確認が終わったらテストデータは削除してください。</u></div>';
+  h+='<table><tr><th>日</th><th>この日で試している条件</th><th>登録された？</th></tr>';
+  memo.forEach(function(m){
+    h+='<tr><td class="num">'+m.day+'日</td><td>'+esc(m.desc)+'</td><td>□ 登録された／□ されなかった</td></tr>';
+  });
+  h+='</table>';
+  h+='<details><summary>出力したCSVの中身を確認する</summary><div class="scroll"><table><tr><th>行</th><th>内容</th></tr>'
+    + [ctrl].concat(lines).concat(["3,"+seq]).map(function(l,i){
+        return '<tr><td class="num">'+(i+1)+'</td><td class="mono">'+esc(l)+'</td></tr>';}).join("")
+    + '</table></div></details>';
+  document.getElementById("outP").innerHTML=h;
+
+  LAST_MEMO="実績記録票 取込テスト"+mode+"　対応表\r\n"
+    +"提供年月："+c.ym+"／受給者証番号："+c.jukyu+"／事業所番号："+c.off+"／様式種別番号："+c.yoshiki+"\r\n\r\n"
+    +memo.map(function(m){return m.day+"日：" + m.desc + "　→　登録された／されなかった";}).join("\r\n")+"\r\n";
+  document.getElementById("btnMemo").disabled=false;
+}
+document.getElementById("btnProbeA").addEventListener("click",function(){buildProbe("A");});
+document.getElementById("btnProbeB").addEventListener("click",function(){buildProbe("B");});
+/* ============ ⑤ 変換（バイト単位・文字コードを保ったまま） ============ */
+/* Shift-JISの2バイト目には , (0x2C) と " (0x22) は現れないため、バイト列のままCSVとして安全に分解できる */
+var CONV=null;
+function u8ToBin(u8){
+  var s="",CH=8192;
+  for(var i=0;i<u8.length;i+=CH){ s+=String.fromCharCode.apply(null,u8.subarray(i,i+CH)); }
+  return s;
+}
+function binToU8(s){
+  var u=new Uint8Array(s.length);
+  for(var i=0;i<s.length;i++)u[i]=s.charCodeAt(i)&0xFF;
+  return u;
+}
+function splitRaw(line){
+  var out=[],cur="",q=false;
+  for(var i=0;i<line.length;i++){
+    var c=line[i];
+    if(q){ cur+=c; if(c==='"'){ if(line[i+1]==='"'){cur+='"';i++;} else q=false; } }
+    else{ if(c==='"'){q=true;cur+=c;} else if(c===","){out.push(cur);cur="";} else cur+=c; }
+  }
+  out.push(cur);
+  return out;
+}
+function unq(raw){
+  if(raw.length>=2&&raw[0]==='"'&&raw[raw.length-1]==='"')return raw.slice(1,-1).replace(/""/g,'"');
+  return raw;
+}
+function isQuoted(raw){ return raw.length>=2&&raw[0]==='"'&&raw[raw.length-1]==='"'; }
+function reQuote(val){ return '"'+String(val).replace(/"/g,'""')+'"'; }
+
+(function(){
+  var dropC=document.getElementById("dropC"),fileC=document.getElementById("fileC");
+  function read(file){
+    var fr=new FileReader();
+    fr.onload=function(){
+      var u8=new Uint8Array(fr.result);
+      CONV={name:file.name,bin:u8ToBin(u8),size:u8.length};
+      document.getElementById("nameC").textContent=file.name+"（"+u8.length+"バイト）";
+      document.getElementById("btnConv").disabled=false;
+      document.getElementById("outC").innerHTML="";
+    };
+    fr.readAsArrayBuffer(file);
+  }
+  dropC.addEventListener("click",function(){fileC.click();});
+  fileC.addEventListener("change",function(){ if(fileC.files[0])read(fileC.files[0]); });
+  ["dragenter","dragover"].forEach(function(ev){dropC.addEventListener(ev,function(e){e.preventDefault();dropC.classList.add("on");});});
+  ["dragleave","drop"].forEach(function(ev){dropC.addEventListener(ev,function(e){e.preventDefault();dropC.classList.remove("on");});});
+  dropC.addEventListener("drop",function(e){e.preventDefault();var f=e.dataTransfer.files[0];if(f)read(f);});
+})();
+
+document.getElementById("btnConv").addEventListener("click",function(){
+  if(!CONV)return;
+  var o={
+    st1:document.getElementById("cSt1").checked,
+    st2:document.getElementById("cSt2").checked,
+    unquote:document.getElementById("cQuote").checked,
+    tail:document.getElementById("cTail").checked,
+    noTime:document.getElementById("cNoTime").checked,
+    move:document.getElementById("cMove").checked,
+    from:parseInt(document.getElementById("cFrom").value)||16,
+    to:parseInt(document.getElementById("cTo").value)||14,
+    yoshiki:document.getElementById("cYoshiki").checked,
+    yoshikiVal:(document.getElementById("cYoshikiVal").value||"").trim(),
+    pad:document.getElementById("cPad").checked
+  };
+  var eol=CONV.bin.indexOf("\r\n")>=0?"\r\n":"\n";
+  var lines=CONV.bin.split(/\r\n|\n/);
+  var tail="";
+  if(lines.length&&lines[lines.length-1]==="")
+    { lines.pop(); tail=eol; }
+  var log=[],changed=0;
+  var out=lines.map(function(line,li){
+    var raws=splitRaw(line);
+    var vals=raws.map(unq);
+    if(vals[0]!=="2")return line;                       // データレコード以外は触らない
+    var before=vals.slice();
+    var isDay=(vals[3]==="02");
+    if(isDay){
+      if(o.st1&&vals[11]==="1")vals[11]="";
+      if(o.st2&&vals[11]==="2")vals[11]="";
+      if(o.noTime){ vals[o.from-1]=""; vals[o.from]=""; }
+      else if(o.move){
+        var a=vals[o.from-1],b=vals[o.from];
+        if((a&&a!=="")||(b&&b!=="")){
+          vals[o.from-1]=""; vals[o.from]="";
+          vals[o.to-1]=a; vals[o.to]=b;
+        }
+      }
+    }
+    if(o.tail&&vals[vals.length-1]==="0")vals[vals.length-1]="";
+    if(o.yoshiki&&o.yoshikiVal)vals[8]=o.yoshikiVal;
+    if(o.pad&&vals[6]!=null){
+      var v=vals[6].replace(/\s+$/,"");
+      while(v.length<10)v+=" ";
+      vals[6]=v;
+    }
+    var diff=vals.some(function(v,i){return v!==before[i];});
+    if(diff)changed++;
+    return vals.map(function(v,i){
+      if(o.unquote)return v;
+      return isQuoted(raws[i])?reQuote(v):v;
+    }).join(",");
+  });
+  var bin=out.join(eol)+tail;
+  var blob=new Blob([binToU8(bin)],{type:"text/plain"});
+  var url=URL.createObjectURL(blob);
+  var fname=CONV.name.replace(/\.(csv|CSV|txt)$/,"")+"_修正.csv";
+  var a=document.createElement("a"); a.href=url; a.download=fname; a.click();
+  setTimeout(function(){URL.revokeObjectURL(url);},3000);
+  document.getElementById("outC").innerHTML=
+    '<div class="ok"><b>'+esc(fname)+'</b> を保存しました。'+lines.length+'行のうち '+changed+' 行を書き換えました'
+    +'（元のファイルは変更していません。文字コードとレコード件数はそのままです）。</div>'
+    +'<div class="note">この修正ファイルを取り込んで、日別データが入るか確認してください。うまくいった条件が分かったら教えてください。アプリ本体を同じ動きに直します。</div>';
+});
+document.getElementById("btnMemo").addEventListener("click",function(){
+  var blob=new Blob([LAST_MEMO],{type:"text/plain;charset=utf-8"});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement("a"); a.href=url; a.download="取込テスト対応表.txt"; a.click();
+  setTimeout(function(){URL.revokeObjectURL(url);},3000);
+});
+</script>
+</main>
+</body>
+</html>
