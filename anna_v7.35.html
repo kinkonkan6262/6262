@@ -2972,7 +2972,7 @@ function YoushikiTab({names, allData, office}) {
   // ==== 国保連インターフェース設定 ====
   const CHIIKI_TANKA={"01":1140,"02":1112,"03":1084,"04":1070,"05":1070,"06":1056,"07":1042,"08":1000};
   // 実績記録票CSV「サービス提供の状況」の既定コード。簡易入力ソフトの選択肢番号が事業所により異なるため設定で上書きできる。
-  const ST_DEFAULT={"通":"1","外":"2","欠":"3","在":"1"};
+  const ST_DEFAULT={"通":"","外":"","欠":"3","在":""};
   const ST_LABEL={"通":"通所","外":"施設外就労","欠":"欠席","在":"在宅"};
   const [khSet,setKhSet]=useState(()=>{
     try{return JSON.parse(localStorage.getItem(officeKey("y2_kh_s"))||"null")||{prefNo:"45",cityNo:"",chiikiCode:"08",mediaType:"7"};}
@@ -3070,7 +3070,7 @@ function YoushikiTab({names, allData, office}) {
         const v=md[d];
         if(!v||!v.st)continue;
         const st=ST[v.st];
-        if(!st)continue;
+        if(st===undefined)continue; // 空文字は正しい出力値（通常の提供日）なので除外しない
         days.push({d,v,st,k:v.st});
       }
       if(days.length===0)return;
