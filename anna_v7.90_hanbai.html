@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>Anna AI支援記録 AI版 v7.83 販売版</title>
+<title>Anna AI支援記録 AI版 v7.90 販売版</title>
 <script>/* encoding-japanese v2.1.0 を直接埋め込み（CDN接続不要化 v7.53） */
 /*!
  * encoding-japanese v2.1.0 - Convert and detect character encoding in JavaScript
@@ -188,7 +188,7 @@ function kkTrialRemainDays(){
 // ===== 更新お知らせ v7.60 =====
 // GitHub上の app_version.json の latest が自分より新しければ、右下に案内を表示する。
 // 表示のみ（利用は止めない）。通信できない場合は何もしない。
-var KK_APP_VERSION = "7.87";
+var KK_APP_VERSION = "7.90";
 var KK_VERSION_URLS = [
   "https://raw.githubusercontent.com/kinkonkan6262/6262/main/app_version.json",
   "https://kinkonkan6262.github.io/6262/app_version.json"
@@ -11281,6 +11281,12 @@ function YoushikiTab({sel, names, allData, office, svcMode}) {
   //                         31=施設外支援 34=食事提供加算 37=備考(全角スペース50)
   //                         38=サービス提供の状況(欠席時対応加算=8／通常=0)
   //   ※未使用項目を空欄にすると、取込エラーは出ないまま日別データだけ無視される（v7.87までの不具合）
+  // v7.90: 簡易入力システムが書き出した実データ（TH05 202607分・56名/日別933件/欠席57件）と突き合わせ、
+  //   ・日別の欠席は「項目38＝8／項目16・17が空欄」だけで表され、当方の出力と完全に一致することを確認
+  //   ・基本情報(01)で0以外が入るのは項目36（送迎往復の合計回数）のみで、56名全員一致することを確認
+  //   → 実績記録票のレイアウトには欠席時対応加算を伝える欄が存在しない。
+  //     欠席時対応加算(466001・94単位)は簡易入力システムの【請求明細書】側で入力する必要があるため、
+  //     出力後に対象者と回数を案内する。
   const JIS_MEMO50="\u3000".repeat(50);
   const JIS_T01=["0", "0", "0", "0", "0", "0", "0", "0", "00000", "00000", "00000", "00000", "00000", "00000", "00000", "00000", "00000", "00000", "00000", "00000", "00000", "00000", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0000", "0", "0", "0", "0", "0", "0", "00000", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0"];
   const JIS_T02=["0", "", "0", "000000", "0", "0", "", "", "0000", "0", "0", "0", "0", "0", "0", "0000", "0", "0", "0", "0000", "0", "0", "0", "0", "0", "0", "0", "", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0000", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0"];
@@ -11299,6 +11305,8 @@ function YoushikiTab({sel, names, allData, office, svcMode}) {
     const warnings=[];
     const skipNoJukyu=[];
     const skipNoJisseki=[];
+    const kessekiList=[];   // 欠席時対応加算の対象者と回数（明細書側での手入力用）
+    let kessekiTotal=0;
     names.forEach(name=>{
       const u=allData[name]||{};
       const jukyuRaw=(u.jukyu||"").trim().replace(/[０-９]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0));
@@ -11319,6 +11327,8 @@ function YoushikiTab({sel, names, allData, office, svcMode}) {
       }
       if(days.length===0){skipNoJisseki.push(name);return;}
       targetCount++;
+      const kessekiCnt=days.filter(function(e){return e.kesseki;}).length;
+      if(kessekiCnt>0){kessekiList.push(name+"さん "+kessekiCnt+"回"+(kessekiCnt>4?"（⚠️上限4回超）":""));kessekiTotal+=kessekiCnt;}
       const sougei=days.reduce((a,e)=>a+(!e.kesseki&&e.v.s1?1:0)+(!e.kesseki&&e.v.s2?1:0),0);
       // 基本情報レコード(01)
       const b=JIS_T01.slice();
@@ -11381,6 +11391,7 @@ function YoushikiTab({sel, names, allData, office, svcMode}) {
     let skipMsg="";
     if(skipNoJukyu.length>0)skipMsg+="\n\n⚠️ 受給者証番号が未入力のため出力できなかった方（"+skipNoJukyu.length+"名）:\n"+lim(skipNoJukyu)+"\n→「実績記録」タブの受給者証番号欄に入力すると出力されます。";
     if(skipNoJisseki.length>0)skipMsg+="\n\nℹ️ 当月に出力対象の実績（通所・施設外・在宅・欠席加算）が無いため出力しなかった方（"+skipNoJisseki.length+"名）:\n"+lim(skipNoJisseki)+"\n※欠席（加算なし）だけの月は国保連CSVに載せない設定です。";
+    if(kessekiList.length>0)skipMsg+="\n\n🟠 欠席時対応加算（"+kessekiList.length+"名・合計"+kessekiTotal+"回）について\n実績記録票には「欠席」として正しく入りますが、実績記録票の様式には欠席時対応加算の欄がありません。\n簡易入力システムの【請求明細書】にサービスコード 466001（欠席時対応加算・94単位）を追加し、次の回数を入力してください。\n"+lim(kessekiList)+"\n※この一覧は「請求明細書確認」の欠席時対応の列と同じ内容です。";
     alert("✅ 実績記録票CSV（取込用）を出力しました！\n\n対象利用者: "+targetCount+"名（名簿 "+names.length+"名中）\nデータレコード数: "+dataRecs.length+"件"+skipMsg+"\n\n⚠️ このファイルはExcelで開かないでください。\n中身の確認は「実績CSV検査ツール」にドロップしてください。");
     }catch(ex){
       alert("❌ 内部エラーが発生しました。\n\nエラー: "+ex.message);
@@ -11570,6 +11581,12 @@ function YoushikiTab({sel, names, allData, office, svcMode}) {
           <button onClick={dlKokuhorenIfCsv} style={btnPrimary("#B71C1C")}>🏛️ 国保連形式CSV</button>
           <button onClick={()=>setShowKhPanel(!showKhPanel)} style={btnPrimary("#4A148C")}>{showKhPanel?"✅ 国保連設定を閉じる":"⚙️ 国保連設定"}</button>
         </div>
+      </div>
+
+      <div style={{background:"#FFF3E0",border:"1px solid #FFB74D",borderRadius:6,padding:"7px 14px",marginBottom:10,fontSize:11,lineHeight:1.8}}>
+        <b style={{color:"#E65100"}}>🟠 欠席時対応加算について</b><br/>
+        実績記録票の様式には欠席時対応加算の欄がありません。取込用CSVで欠席の日は正しく「欠席」として入りますが、加算そのものは伝わりません。
+        簡易入力システムの<b>【請求明細書】にサービスコード 466001（94単位）を追加</b>し、下の「欠席時対応」の列の回数を入力してください（原則 月4回まで）。
       </div>
 
       <div style={{background:"#E3F2FD",border:"1px solid #90CAF9",borderRadius:6,padding:"7px 14px",marginBottom:10,fontSize:11,lineHeight:1.9}}>
