@@ -11219,6 +11219,8 @@ function YoushikiTab({sel, names, allData, office, svcMode}) {
   });
   const [kasanCounts, setKasanCounts] = useState({});
   // ==== 国保連インターフェース設定 ====
+  // 宮崎県の市町村番号（6桁＝団体コード5桁＋検証番号）。検証番号は重み6,5,4,3,2の11で除した余りから算出。
+  const MIYAZAKI_CITIES=[{"c":"452017","n":"宮崎市"},{"c":"452025","n":"都城市"},{"c":"452033","n":"延岡市"},{"c":"452041","n":"日南市"},{"c":"452050","n":"小林市"},{"c":"452068","n":"日向市"},{"c":"452076","n":"串間市"},{"c":"452084","n":"西都市"},{"c":"452092","n":"えびの市"},{"c":"453412","n":"三股町"},{"c":"453617","n":"高原町"},{"c":"453820","n":"国富町"},{"c":"453838","n":"綾町"},{"c":"454010","n":"高鍋町"},{"c":"454028","n":"新富町"},{"c":"454036","n":"西米良村"},{"c":"454044","n":"木城町"},{"c":"454052","n":"川南町"},{"c":"454060","n":"都農町"},{"c":"454214","n":"門川町"},{"c":"454290","n":"諸塚村"},{"c":"454303","n":"椎葉村"},{"c":"454311","n":"美郷町"},{"c":"454419","n":"高千穂町"},{"c":"454427","n":"日之影町"},{"c":"454435","n":"五ヶ瀬町"}];
   const CHIIKI_TANKA={"01":1140,"02":1112,"03":1084,"04":1070,"05":1070,"06":1056,"07":1042,"08":1000};
   const [khSet,setKhSet]=useState(()=>{
     try{return JSON.parse(localStorage.getItem(officeKey(KP+"kh_s"))||"null")||{prefNo:"45",cityNo:"",chiikiCode:"08",mediaType:"7"};}
@@ -11229,6 +11231,11 @@ function YoushikiTab({sel, names, allData, office, svcMode}) {
     catch(e){return {};}
   });
   const [showKhPanel,setShowKhPanel]=useState(false);
+  // 利用者ごとの市町村番号（未設定なら国保連設定の既定値）
+  const userCityNo=(name)=>{
+    const c=((khUsr[name]||{}).city||"").trim();
+    return c||((khSet.cityNo||"").trim());
+  };
 
   useEffect(()=>{try{localStorage.setItem(officeKey(KP+"auto"),JSON.stringify(autoItems));}catch(e){}}, [autoItems]);
   useEffect(()=>{try{localStorage.setItem(officeKey(KP+"kasan"),JSON.stringify(kasanItems));}catch(e){}}, [kasanItems]);
@@ -11266,7 +11273,7 @@ function YoushikiTab({sel, names, allData, office, svcMode}) {
   };
 
   // ============ 実績記録票CSV（国保連取込形式 J611・様式1701 就労継続支援B型） ============
-  // v7.88: 電子請求受付システム(簡易入力 v2.42.0)が実際に書き出したファイルを解析し、レイアウトを実測確定。
+  // v7.89: 電子請求受付システム(簡易入力 v2.42.0)が実際に書き出したファイルを解析し、レイアウトを実測確定。
   //   コントロール: 1,1,0,<件数>,"J61",0,"<事業所番号>",0,"1",<処理年月=提供年月の翌月>,   ※最終項目は空
   //   基本情報(01)=174項目: 36=送迎加算(合計回数)。それ以外は 0 / 00000 等で桁数を埋める（算定日数は書かない）
   //   日別情報(02)=115項目: 10=0固定 11=日(ゼロ埋めなし) 12=0固定 13=000000
@@ -11300,6 +11307,7 @@ function YoushikiTab({sel, names, allData, office, svcMode}) {
         warnings.push(name+"さん: 受給者証番号「"+jukyuRaw+"」の桁数・文字に誤りがある可能性があります");
       }
       const jukyu=jukyuRaw.padStart(10,"0");
+      const uCity=(userCityNo(name)||cityNo6).padStart(6,"0"); // 利用者ごとの市町村番号
       const md=((u.att||{})[ym])||{};
       const days=[];
       for(let d=1;d<=nd;d++){
@@ -11315,7 +11323,7 @@ function YoushikiTab({sel, names, allData, office, svcMode}) {
       // 基本情報レコード(01)
       const b=JIS_T01.slice();
       b[36-10]=String(sougei);                     // 36: 送迎加算 合計回数
-      dataRecs.push(["2",String(recSeq++),'"J611"',"01",ymStr,cityNo6,'"'+offNo+'"','"'+jukyu+'"',"1701"].concat(b).join(","));
+      dataRecs.push(["2",String(recSeq++),'"J611"',"01",ymStr,uCity,'"'+offNo+'"','"'+jukyu+'"',"1701"].concat(b).join(","));
       // 日別情報レコード(02)
       days.forEach(e=>{
         const f=JIS_T02.slice();
@@ -11338,7 +11346,7 @@ function YoushikiTab({sel, names, allData, office, svcMode}) {
           if(e.v.gaisho)f[31-10]="1";              // 31: 施設外支援
           if(e.v.meal)f[34-10]="1";                // 34: 食事提供加算
         }
-        dataRecs.push(["2",String(recSeq++),"J611","02",ymStr,cityNo6,offNo,jukyu,"1701"].concat(f).join(","));
+        dataRecs.push(["2",String(recSeq++),"J611","02",ymStr,uCity,offNo,jukyu,"1701"].concat(f).join(","));
       });
     });
     if(dataRecs.length===0){alert("⚠️ 対象者がいません。\n・受給者証番号が入力されていること\n・該当月の実績記録が入力されていること\nを確認してください。\n\n月選択: "+ym);return;}
@@ -11471,7 +11479,7 @@ function YoushikiTab({sel, names, allData, office, svcMode}) {
       const usedDays=Object.keys(att).map(Number).filter(d=>att[d]&&(att[d].st==="\u901a"||att[d].st==="\u5916"||att[d].st==="\u5728")).sort((a,b)=>a-b); // v7.84: サービス開始日は実際に提供した日（通所・施設外・在宅）から取る。欠席加算の日を開始日にしない
       const firstDay=usedDays[0]||1;
       const startDate=String(y2)+String(m2).padStart(2,"0")+String(firstDay).padStart(2,"0");
-      const cityNo6=cityNo.padStart(6,"0");
+      const cityNo6=(userCityNo(name)||cityNo).padStart(6,"0"); // 利用者ごとの市町村番号
       const offNo10=offNo.length>=10?offNo:offNo.padEnd(10," ");
       const rec01=["J121","01",ymStr,cityNo6,offNo10,jukyu,"",kana,"",chiikiCode,
         upperLimit>0?String(upperLimit):"","","","","",
@@ -11614,7 +11622,7 @@ function YoushikiTab({sel, names, allData, office, svcMode}) {
         <div style={{overflowX:"auto"}}>
           <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
             <thead><tr>
-              {["氏名","氏名カナ（25文字以内）","利用者負担上限月額（円）","給付率（900=90%）"].map((h,i)=>(
+              {["氏名","市町村","氏名カナ（25文字以内）","利用者負担上限月額（円）","給付率（900=90%）"].map((h,i)=>(
                 <th key={i} style={{background:"#E91E63",color:"#fff",border:"1px solid #C2185B",padding:"4px 8px",textAlign:"center"}}>{h}</th>
               ))}
             </tr></thead>
@@ -11625,6 +11633,12 @@ function YoushikiTab({sel, names, allData, office, svcMode}) {
                 const tdPk={border:"1px solid #F48FB1",padding:"3px 6px",background:"#FFF0F5"};
                 return <tr key={name}>
                   <td style={tdPk}>{name}</td>
+                  <td style={tdPk}>
+                    <select value={ku.city||""} onChange={e=>setKu("city",e.target.value)} style={inputStyle}>
+                      <option value="">（既定：{(khSet.cityNo||"未設定")}）</option>
+                      {MIYAZAKI_CITIES.map(c=><option key={c.c} value={c.c}>{c.n}（{c.c}）</option>)}
+                    </select>
+                  </td>
                   <td style={tdPk}><input value={ku.kana||""} onChange={e=>setKu("kana",e.target.value)} placeholder={"例：ヤマダ タロウ"} style={inputStyle} maxLength={25}/></td>
                   <td style={tdPk}><select value={ku.limit||"0"} onChange={e=>setKu("limit",e.target.value)} style={inputStyle}>
                     <option value="0">0（生活保護・低所得）</option>
@@ -11643,7 +11657,7 @@ function YoushikiTab({sel, names, allData, office, svcMode}) {
         </div>
         <div style={{marginTop:8,fontSize:11,color:"#880E4F",lineHeight:1.8,background:"#FCE4EC",padding:"6px 10px",borderRadius:4}}>
           ⚠️ <b>注意事項：</b>生成されるCSVはShift-JIS形式です。「国保連電子請求受付システム（e-seikyuu.jp）」への提出には<b>電子証明書（電子媒体カード）</b>が必要です。<br/>
-          市町村番号はチェックデジットを含む6桁です（例：宮崎市 452028）。算定要件・金額は必ず最新の告示で確認してください。
+          市町村番号はチェックデジットを含む6桁です（例：宮崎市 452017）。算定要件・金額は必ず最新の告示で確認してください。
         </div>
       </div>}
 
