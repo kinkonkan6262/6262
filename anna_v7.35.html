@@ -3017,38 +3017,30 @@ function YoushikiTab({names, allData, office}) {
   };
 
   // ============ 実績記録票CSV（国保連取込形式 J611・様式1701 就労継続支援B型） ============
-  // 全項目の位置は取込システムのエラーリスト診断で実測確定済み（2026-07 ErrFile解析）
-  //   コントロール: 1,1,0,件数,J61,0,事業所番号,0,1,年月,0
-  //   基本情報(01)=174項目: 36=送迎加算(回) 39=算定日数(日) 47=食事提供加算(回) 55=施設外支援当月(日)
-  //   日別情報(02)=115項目: 10=提供通番 11=日 12=サービス提供の状況(1=通所2=施設外3=欠席)
-  //                         16=開始時間 17=終了時間 23=送迎往 24=送迎復 31=施設外支援 34=食事提供加算 37=備考
+  // 2026-08 電子請求受付システムの実出力ファイル(TH05_...CSV)を解析し、レイアウトを実測確定。
+  //   コントロール: 1,1,0,<件数>,"J61",0,"<事業所番号>",0,"1",<処理年月=提供年月の翌月>,  ※最終項目は空
+  //   基本情報(01)=174項目: 36=送迎加算(合計回数)。それ以外は 0 / 00000 等の桁数埋め。
+  //   日別情報(02)=115項目: 10=0固定 11=日(ゼロ埋めなし) 12=0固定 13=000000
+  //                         16=開始時間 17=終了時間(欠席日は空欄) 23=送迎往 24=送迎復
+  //                         37=備考(全角スペース50) 38=サービス提供の状況(欠席=8／通常=0)
+  //   未使用項目は空欄ではなく 0 で埋める（空欄だと日別データが取り込まれない）
   //   出力: Shift-JIS・CRLF
+  const JISSEKI_MEMO50="\u3000".repeat(50);
+  const JISSEKI_T01=["0", "0", "0", "0", "0", "0", "0", "0", "00000", "00000", "00000", "00000", "00000", "00000", "00000", "00000", "00000", "00000", "00000", "00000", "00000", "00000", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0000", "0", "0", "0", "0", "0", "0", "00000", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0"];
+  const JISSEKI_T02=["0", "", "0", "000000", "0", "0", "", "", "0000", "0", "0", "0", "0", "0", "0", "0000", "0", "0", "0", "0000", "0", "0", "0", "0", "0", "0", "0", "", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0000", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0"];
   const dlJissekiCsv=()=>{
     try{
     const [y2,m2]=ym.split("-").map(Number);
     const ymStr=String(y2)+String(m2).padStart(2,"0");
     const offNo=((office&&office.officeNo)||"").trim();
-    if(!offNo){alert("⚠️ 事業所番号が未設定です。\n『🏢事業所設定』タブで事業所番号を入力してください。");return;}
+    if(!offNo){alert("\u26a0\ufe0f 事業所番号が未設定です。\n『🏢事業所設定』タブで事業所番号を入力してください。");return;}
     const cityNo=(khSet.cityNo||"").trim();
-    if(!cityNo){alert("⚠️ 市町村番号が未設定です。\n『⚙️ 国保連設定』ボタンを押して市町村番号（6桁）を入力してください。");return;}
+    if(!cityNo){alert("\u26a0\ufe0f 市町村番号が未設定です。\n『⚙️ 国保連設定』ボタンを押して市町村番号（6桁）を入力してください。");return;}
     const cityNo6=cityNo.padStart(6,"0");
-    const esc=v=>'"'+String(v==null?"":v).replace(/"/g,'""')+'"';
-    const REC01_LEN=174, REC02_LEN=115; // 1行の総項目数（先頭の 2,通番 を含む）
-    const ST={"通":"1","外":"2","欠":"3","加":"3"};
     const fmtT=t=>{const d=String(t||"").replace(/[^0-9]/g,"");return d?d.padStart(4,"0"):"";};
-    const memoSafe=m=>String(m||"").replace(/,/g,"、").replace(/[\r\n"]/g," ").trim();
     const nd=new Date(y2,m2,0).getDate();
     let dataRecs=[]; let recSeq=2; let targetCount=0;
-    const warnings=[]; // 国保電子提出前チェック：おかしい記載を見つけたらここに積む
-    const mkRec=(recType,totalLen,jukyu)=>{
-      const f=new Array(totalLen).fill("");
-      f[0]="2";f[2]="J611";f[3]=recType;f[4]=ymStr;f[5]=cityNo6;f[6]=offNo;f[7]=jukyu;f[8]="1701";
-      return f;
-    };
-    const pushRec=f=>{
-      f[f.length-1]="0"; // 最終項目(未使用の加算欄)に明示的な0を置き、Excelの空欄削除で項目数が変わるのを防ぐ
-      dataRecs.push(f[0]+","+recSeq+","+f.slice(2).map(esc).join(","));recSeq++;
-    };
+    const warnings=[];
     names.forEach(name=>{
       const u=allData[name]||{};
       const jukyuRaw=(u.jukyu||"").trim();
@@ -3062,76 +3054,52 @@ function YoushikiTab({names, allData, office}) {
       for(let d=1;d<=nd;d++){
         const v=md[d];
         if(!v||!v.st)continue;
-        const st=ST[v.st];
-        if(!st)continue;
-        days.push({d,v,st});
+        if(["通","外","欠","加"].indexOf(v.st)<0)continue;
+        days.push({d,v,kesseki:(v.st==="欠"||v.st==="加")});
       }
       if(days.length===0)return;
       targetCount++;
-      const useDays=days.filter(e=>e.st!=="3").length;
-      const sougei=days.reduce((a,e)=>a+(e.st!=="3"&&e.v.s1?1:0)+(e.st!=="3"&&e.v.s2?1:0),0);
-      const meals=days.filter(e=>e.st!=="3"&&e.v.meal).length;
-      const outDays=days.filter(e=>e.st==="2").length;
-      const cnt=k=>days.filter(e=>e.st!=="3"&&e.v[k]).length;
-      const houC1=cnt("hou1"),houC2=cnt("hou2"),irenC=cnt("iren"),taikenC=cnt("taiken"),
-            chiikiC=cnt("chiiki"),kinkyuC=cnt("kinkyu"),shuchuC=cnt("shuchu"),teiinC=cnt("teiin");
-      // 基本情報レコード(01) — 位置は1始まり表記（配列は-1）
-      const b=mkRec("01",REC01_LEN,jukyu);
-      if(sougei)b[35]=String(sougei);   // 36: 提供実績の合計・送迎加算(回)
-      b[38]=String(useDays);            // 39: 提供実績の合計・算定日数(日)
-      if(meals)b[46]=String(meals);     // 47: 提供実績の合計・食事提供加算(回)
-      if(outDays)b[54]=String(outDays); // 55: 施設外支援 当月(日)
-      if(houC1)b[52]=String(houC1);     // 53: 訪問支援特別加算(提供回数)
-      if(houC2)b[53]=String(houC2);     // 54: 訪問支援特別加算(算定回数)
-      if(irenC)b[118]=String(irenC);    // 119: 合計2・医療連携体制加算(回)
-      if(taikenC)b[126]=String(taikenC);// 127: 合計2・体験利用支援加算(回)
-      if(teiinC)b[127]=String(teiinC);  // 128: 合計2・定員超過特例加算(回)
-      if(chiikiC)b[153]=String(chiikiC);// 154: 合計3・地域協働加算(回)
-      if(shuchuC)b[168]=String(shuchuC);// 169: 合計4・集中的支援加算(回)
-      if(kinkyuC)b[169]=String(kinkyuC);// 170: 合計4・緊急時受入加算(回)
-      pushRec(b);
+      const sougei=days.reduce((a,e)=>a+(!e.kesseki&&e.v.s1?1:0)+(!e.kesseki&&e.v.s2?1:0),0);
+      // 基本情報レコード(01)
+      const b=JISSEKI_T01.slice();
+      b[36-10]=String(sougei);                    // 36: 送迎加算 合計回数
+      dataRecs.push(["2",String(recSeq++),'"J611"',"01",ymStr,cityNo6,'"'+offNo+'"','"'+jukyu+'"',"1701"].concat(b).join(","));
       // 日別情報レコード(02)
-      days.forEach((e,i)=>{
-        const f=mkRec("02",REC02_LEN,jukyu);
-        f[9]=String(i+1);                    // 10: 提供通番
-        f[10]=String(e.d).padStart(2,"0");   // 11: 日
-        f[11]=e.st;                          // 12: サービス提供の状況
-        if(e.st!=="3"){
+      days.forEach(e=>{
+        const f=JISSEKI_T02.slice();
+        f[37-10]=JISSEKI_MEMO50;                  // 37: 備考
+        f[11-10]=String(e.d);                     // 11: 日（ゼロ埋めしない）
+        f[12-10]="0";                             // 12: 常に0
+        if(e.kesseki){
+          f[16-10]=""; f[17-10]="";               // 16/17: 欠席日は時間なし
+          f[38-10]="8";                           // 38: サービス提供の状況＝欠席
+        }else{
           const inT=fmtT(e.v.in), outT=fmtT(e.v.out);
           if(!inT||!outT){
             warnings.push(name+"さん "+m2+"月"+e.d+"日: 開始時間または終了時間が未入力です");
           }else if(Number(outT)<=Number(inT)){
             warnings.push(name+"さん "+m2+"月"+e.d+"日: 終了時間（"+outT+"）が開始時間（"+inT+"）より前後の記載になっています");
           }
-          f[15]=inT;                          // 16: 開始時間(HHMM)
-          f[16]=outT;                         // 17: 終了時間(HHMM)
-          if(e.v.s1)f[22]="1";               // 23: 送迎加算 往
-          if(e.v.s2)f[23]="1";               // 24: 送迎加算 復
-          const numOnly=x=>String(x==null?"":x).replace(/[^0-9]/g,"");
-          if(e.v.hou1)f[28]=numOnly(e.v.hou1);// 29: 訪問支援特別加算(提供時間数)
-          if(e.v.hou2)f[29]=numOnly(e.v.hou2);// 30: 訪問支援特別加算(算定時間数)
-          if(e.st==="2")f[30]="1";           // 31: 施設外支援
-          if(e.v.meal)f[33]="1";             // 34: 食事提供加算
-          if(e.v.iren)f[75]="1";             // 76: 医療連携体制加算
-          if(e.v.taiken)f[84]="1";           // 85: 体験利用支援加算
-          if(e.v.teiin)f[85]="1";            // 86: 定員超過特例加算
-          if(e.v.chiiki)f[97]="1";           // 98: 地域協働加算
-          if(e.v.shuchu)f[108]="1";          // 109: 集中的支援加算
-          if(e.v.kinkyu)f[109]="1";          // 110: 緊急時受入加算
+          f[16-10]=inT; f[17-10]=outT;            // 16/17: 開始・終了時間
+          f[23-10]=e.v.s1?"1":"0";                // 23: 送迎(往)
+          f[24-10]=e.v.s2?"1":"0";                // 24: 送迎(復)
+          if(e.v.st==="外")f[31-10]="1";          // 31: 施設外支援
+          if(e.v.meal)f[34-10]="1";               // 34: 食事提供加算
         }
-        const memo=memoSafe(e.v.memo);
-        if(memo)f[36]=memo;                  // 37: 備考
-        pushRec(f);
+        dataRecs.push(["2",String(recSeq++),"J611","02",ymStr,cityNo6,offNo,jukyu,"1701"].concat(f).join(","));
       });
     });
-    if(dataRecs.length===0){alert("⚠️ 対象者がいません。\n・受給者証番号が入力されていること\n・該当月の実績記録が入力されていること\nを確認してください。\n\n月選択: "+ym);return;}
+    if(dataRecs.length===0){alert("\u26a0\ufe0f 対象者がいません。\n・受給者証番号が入力されていること\n・該当月の実績記録が入力されていること\nを確認してください。\n\n月選択: "+ym);return;}
     if(warnings.length>0){
       const shown=warnings.slice(0,15);
       if(warnings.length>15)shown.push("…ほか"+(warnings.length-15)+"件");
       warnBeforeSubmit(shown);
     }
-    const ctrlRec=[1,1,0,dataRecs.length,"J61",0,offNo,0,1,ymStr,0].join(",");
-    const endRec="3,"+recSeq;
+    // コントロールレコードの年月は「処理年月」＝提供年月の翌月
+    let cy=y2, cm=m2+1; if(cm>12){cm=1;cy++;}
+    const shoriYm=String(cy)+String(cm).padStart(2,"0");
+    const ctrlRec=["1","1","0",String(dataRecs.length),'"J61"',"0",'"'+offNo+'"',"0",'"1"',shoriYm,""].join(",");
+    const endRec="3,"+(dataRecs.length+2);
     const allLines=[ctrlRec,...dataRecs,endRec].join("\r\n")+"\r\n";
     let blob;
     try{
@@ -3147,9 +3115,9 @@ function YoushikiTab({names, allData, office}) {
     const url=URL.createObjectURL(blob);
     const a=document.createElement("a");a.href=url;a.download="実績記録票_"+ymStr+"_取込用.csv";a.click();
     setTimeout(()=>URL.revokeObjectURL(url),3000);
-    alert("✅ 実績記録票CSV（取込用）を出力しました！\n\n対象利用者: "+targetCount+"名\nデータレコード数: "+dataRecs.length+"件\n\n開始・終了時間／送迎／食事／施設外／備考も自動反映されます。\n\n⚠️ このファイルはExcelで開かないでください。\n中身の確認は「実績CSV検査ツール」にドロップしてください。");
+    alert("\u2705 実績記録票CSV（取込用）を出力しました！\n\n対象利用者: "+targetCount+"名\nデータレコード数: "+dataRecs.length+"件\n\n\u26a0\ufe0f このファイルはExcelで開かないでください。\n中身の確認は「実績CSV検査ツール」にドロップしてください。");
     }catch(ex){
-      alert("❌ 内部エラーが発生しました。\n\nエラー: "+ex.message);
+      alert("\u274c 内部エラーが発生しました。\n\nエラー: "+ex.message);
     }
   };
 

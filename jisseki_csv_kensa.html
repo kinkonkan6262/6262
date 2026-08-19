@@ -162,6 +162,21 @@ summary{cursor:pointer;font-size:12px;color:var(--blue)}
   <div id="outC"></div>
 </div>
 
+
+<!-- ⑥ 正解形式へ作り直し -->
+<div class="card" style="border-color:#1b5e20;border-width:2px">
+  <h2>⑥ 正しい形式に作り直す（本命）</h2>
+  <p class="lead">アプリが出力した <span class="mono">実績記録票_YYYYMM_取込用.csv</span> を読み込み、<b>電子請求受付システムが実際に書き出すのと同じ形式</b>に作り直します。国保連の見本ファイル（TH05…CSV）を解析して判明した正解レイアウトを使っています。</p>
+  <div class="drop" id="dropR">ここにアプリのCSVをドロップ／クリックして選択</div>
+  <input type="file" id="fileR" style="display:none" accept=".csv,.CSV,.txt">
+  <div class="small" id="nameR"></div>
+  <div style="margin-top:10px">
+    <label><input type="checkbox" id="rKasan"> 施設外支援・食事提供加算のフラグも出力する（位置が未確認のため、最初はチェックなしで試してください）</label>
+  </div>
+  <button class="b-green" id="btnRebuild" disabled>正しい形式で作り直して保存</button>
+  <div id="outR"></div>
+</div>
+
 <div class="card">
   <h2>取込テストの結果の読み方</h2>
   <table>
@@ -479,6 +494,111 @@ function buildProbe(mode){
 }
 document.getElementById("btnProbeA").addEventListener("click",function(){buildProbe("A");});
 document.getElementById("btnProbeB").addEventListener("click",function(){buildProbe("B");});
+/* ============ ⑥ 正解形式へ作り直し ============ */
+/* 国保連の実出力ファイル(TH05_...CSV)を解析して判明したレイアウト。項目10以降のひな型。 */
+var T01=["0", "0", "0", "0", "0", "0", "0", "0", "00000", "00000", "00000", "00000", "00000", "00000", "00000", "00000", "00000", "00000", "00000", "00000", "00000", "00000", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0000", "0", "0", "0", "0", "0", "0", "00000", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0"];
+var MEMO50="　".repeat(50);
+var T02=["0", "", "0", "000000", "0", "0", "", "", "0000", "0", "0", "0", "0", "0", "0", "0000", "0", "0", "0", "0000", "0", "0", "0", "0", "0", "0", "0", MEMO50, "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0000", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0"];
+/* 項目番号(1始まり)→T02の添字は idx-10 */
+var P={hi:11,jokyo:12,st:16,ed:17,sou1:23,sou2:24,shisetsu:31,shoku:34,kesseki:38};
+var REB=null;
+function encodeSjisAsciiPlusIdeographicSpace(str){
+  var out=[];
+  for(var i=0;i<str.length;i++){
+    var c=str.charCodeAt(i);
+    if(c===0x3000){ out.push(0x81,0x40); }
+    else if(c<128){ out.push(c); }
+    else { out.push(0x3F); } /* 想定外の全角は ? に置換（備考は使わない） */
+  }
+  return new Uint8Array(out);
+}
+(function(){
+  var d=document.getElementById("dropR"),f=document.getElementById("fileR");
+  function read(file){
+    var fr=new FileReader();
+    fr.onload=function(){
+      var dec=decodeBuf(fr.result);
+      REB={name:file.name,recs:parseCsv(dec.text)};
+      document.getElementById("nameR").textContent=file.name+"（"+dec.enc+"・"+REB.recs.length+"行）";
+      document.getElementById("btnRebuild").disabled=false;
+      document.getElementById("outR").innerHTML="";
+    };
+    fr.readAsArrayBuffer(file);
+  }
+  d.addEventListener("click",function(){f.click();});
+  f.addEventListener("change",function(){ if(f.files[0])read(f.files[0]); });
+  ["dragenter","dragover"].forEach(function(ev){d.addEventListener(ev,function(e){e.preventDefault();d.classList.add("on");});});
+  ["dragleave","drop"].forEach(function(ev){d.addEventListener(ev,function(e){e.preventDefault();d.classList.remove("on");});});
+  d.addEventListener("drop",function(e){e.preventDefault();var x=e.dataTransfer.files[0];if(x)read(x);});
+})();
+document.getElementById("btnRebuild").addEventListener("click",function(){
+  if(!REB)return;
+  var withKasan=document.getElementById("rKasan").checked;
+  var src=REB.recs.filter(function(r){return r.f[0]==="2";});
+  if(!src.length){document.getElementById("outR").innerHTML='<div class="warn">データレコードが見つかりません。アプリが出した取込用CSVを入れてください。</div>';return;}
+  var users={},order=[],ym="",off="",warn=[];
+  src.forEach(function(r){
+    var v=r.f;
+    if(!ym)ym=v[4];
+    if(!off)off=String(v[6]).replace(/\s+$/,"");
+    var ju=v[7];
+    if(!users[ju]){users[ju]={city:v[5],days:[]};order.push(ju);}
+    if(v[3]==="02"){
+      var st=String(v[11]||"").trim();
+      users[ju].days.push({
+        d:String(v[10]||"").replace(/^0+/,""),
+        kesseki:(st==="3"),
+        stT:String(v[15]||"").trim(),
+        edT:String(v[16]||"").trim(),
+        s1:String(v[22]||"").trim()==="1",
+        s2:String(v[23]||"").trim()==="1",
+        shisetsu:String(v[30]||"").trim()==="1",
+        shoku:String(v[33]||"").trim()==="1"
+      });
+    }
+  });
+  var lines=[],seq=2;
+  order.forEach(function(ju){
+    var u=users[ju];
+    var sou=u.days.reduce(function(a,e){return a+(e.s1?1:0)+(e.s2?1:0);},0);
+    var t=T01.slice();
+    t[36-10]=String(sou);                                   // 項目36: 送迎加算 合計回数
+    lines.push(["2",String(seq++),'"J611"',"01",ym,u.city,'"'+off+'"','"'+ju+'"',"1701"].concat(t).join(","));
+    u.days.forEach(function(e){
+      var g=T02.slice();
+      g[P.hi-10]=e.d;                                       // 項目11: 日（ゼロ埋めなし）
+      g[P.jokyo-10]="0";                                    // 項目12: 常に0
+      if(!e.kesseki){ g[P.st-10]=e.stT; g[P.ed-10]=e.edT; } // 項目16/17: 時間（欠席は空欄）
+      else { g[P.st-10]=""; g[P.ed-10]=""; g[P.kesseki-10]="8"; } // 項目38: 欠席=8
+      g[P.sou1-10]=e.s1?"1":"0";                            // 項目23/24: 送迎往復
+      g[P.sou2-10]=e.s2?"1":"0";
+      if(withKasan){
+        if(e.shisetsu)g[P.shisetsu-10]="1";
+        if(e.shoku)g[P.shoku-10]="1";
+      }
+      lines.push(["2",String(seq++),"J611","02",ym,u.city,off,ju,"1701"].concat(g).join(","));
+    });
+  });
+  /* コントロールの年月は「提供年月の翌月」＝処理年月 */
+  var y=parseInt(ym.substring(0,4)),m=parseInt(ym.substring(4,6))+1;
+  if(m>12){m=1;y++;}
+  var shori=String(y)+String(m).padStart(2,"0");
+  var ctrl=["1","1","0",String(lines.length),'"J61"',"0",'"'+off+'"',"0",'"1"',shori,""].join(",");
+  var all=[ctrl].concat(lines).concat(["3,"+(lines.length+2)]).join("\r\n")+"\r\n";
+  var blob=new Blob([encodeSjisAsciiPlusIdeographicSpace(all)],{type:"text/plain;charset=shift_jis"});
+  var url=URL.createObjectURL(blob);
+  var fname="実績記録票_"+ym+"_取込用_修正版.csv";
+  var a=document.createElement("a");a.href=url;a.download=fname;a.click();
+  setTimeout(function(){URL.revokeObjectURL(url);},3000);
+  document.getElementById("outR").innerHTML=
+    '<div class="ok"><b>'+esc(fname)+'</b> を保存しました。利用者 '+order.length+'名 ／ レコード '+lines.length+'件'
+    +'（提供年月 '+esc(ym)+'／コントロールの処理年月 '+esc(shori)+'）</div>'
+    +'<div class="note"><b>直した内容：</b>①項目10の通番を0に　②項目12のサービス提供の状況を0に（欠席は項目38に「8」）'
+    +'　③日のゼロ埋めを解除　④未使用項目を空欄から0・00000などの桁数埋めに　⑤項目13を000000に'
+    +'　⑥備考を全角スペース50文字に　⑦送迎は往復とも0/1を明示　⑧コントロールを見本と同じ書き方に（年月は翌月＝処理年月）</div>'
+    +(withKasan?'':'<div class="note">施設外支援・食事提供加算のフラグは出力していません。まずこの状態で取り込み、日別データが入ることを確認してください。</div>');
+});
+
 /* ============ ⑤ 変換（バイト単位・文字コードを保ったまま） ============ */
 /* Shift-JISの2バイト目には , (0x2C) と " (0x22) は現れないため、バイト列のままCSVとして安全に分解できる */
 var CONV=null;
