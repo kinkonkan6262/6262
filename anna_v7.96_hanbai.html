@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>Anna AI支援記録 AI版 v7.95 販売版</title>
+<title>Anna AI支援記録 AI版 v7.96 販売版</title>
 <script>/* encoding-japanese v2.1.0 を直接埋め込み（CDN接続不要化 v7.53） */
 /*!
  * encoding-japanese v2.1.0 - Convert and detect character encoding in JavaScript
@@ -188,7 +188,7 @@ function kkTrialRemainDays(){
 // ===== 更新お知らせ v7.60 =====
 // GitHub上の app_version.json の latest が自分より新しければ、右下に案内を表示する。
 // 表示のみ（利用は止めない）。通信できない場合は何もしない。
-var KK_APP_VERSION = "7.95";
+var KK_APP_VERSION = "7.96";
 var KK_VERSION_URLS = [
   "https://raw.githubusercontent.com/kinkonkan6262/6262/main/app_version.json",
   "https://kinkonkan6262.github.io/6262/app_version.json"
@@ -8746,6 +8746,211 @@ function KirokuTab({kind,office,setOffice,names}){
   </div>;
 }
 
+// ===== 説明書（使い方マニュアル）v7.96 =====
+// 画面の中に説明書を持たせて、迷ったときにその場で読めるようにする。
+// 内容はデータではなく固定の文章なので、保存・同期・請求には一切関わらない。
+const MANUAL=[
+ {ic:"🌱",t:"はじめての方へ",b:[
+  ["p","このソフトは、就労継続支援B型・A型・就労移行支援の記録と請求準備を、1つの画面でまとめて行うためのものです。インターネット上のサーバーに置くのではなく、パソコンの中のファイルを開いて使います。"],
+  ["h","使い始めるまでの3ステップ"],
+  ["ol",["ライセンスキーを入力して「認証して開始」を押します（最初の1回だけ）。次にこの端末のパスコードを決めます。忘れると記録が戻せませんので、必ず控えてください。",
+        "事業所コード → お名前 → PIN（4桁）でログインします。2回目からは名前とPINだけです。",
+        "画面左下の「🏢 事業所設定」で事業所名・サービス管理責任者・事業所番号を入力します。",
+        "左上の「⚙️ 編集」→「➕ B型 / ➕ A型 / ➕ 就労」で利用者を登録します（Excelから貼り付けるときは「📋 一括入替」）。"]],
+  ["tip","入力した内容は自動で保存されます。「保存」を押し忘れても大丈夫です。画面左下に「端末保存 ○○:○○」「クラウド同期済 ○○:○○」と時刻が出ていれば保存できています。"],
+  ["warn","パスコードは記録を暗号化する鍵です。忘れると元に戻せません。使い始める前に「💾 バックアップ」で控えを取り、パスコードは紙などに控えて安全に保管してください。"]]},
+
+ {ic:"🖥️",t:"画面の見方",b:[
+  ["p","画面は大きく3つに分かれています。"],
+  ["tbl",[["場所","内容"],
+    ["左（緑の縦長）","利用者名簿。ここで利用者を選んでから、右の画面に記録します。「◀ 名簿をたたむ」で細くできます。"],
+    ["上（横に並ぶタブ）","個別支援計画書／B型実績記録／B型工賃計算／A型／就労移行／事業所の記録／お客様苦情受付／説明書。大きな区切りです。"],
+    ["中央左（薄い緑の縦メニュー）","そのタブの中の書類の一覧。「◀ たたむ」で細い帯になり、表を広く使えます。「▶ メニュー」で戻ります。"]]],
+  ["h","いつも見えるボタン"],
+  ["tbl",[["ボタン","はたらき"],
+    ["⚙️ 設定（左上）","記録の定型文と、加算・減算の算定項目の一覧を開きます。"],
+    ["◀ ▶（利用者名の横）","前の利用者・次の利用者に切り替えます。"],
+    ["🔒 ロック（右上）","席を外すときに画面をロックします。戻ったらパスコードで解除します。"],
+    ["🖨️ 印刷","いま開いている書類を印刷します。画面のボタン類は印刷されません。"]]],
+  ["tip","「⚠️ 更新時期」「📄 受給者証」の警告は、名簿の氏名の横と画面の上に出ます。押すと予定表が開きます。"]]},
+
+ {ic:"👥",t:"利用者名簿",b:[
+  ["p","左の緑の欄が名簿です。名前を押すとその方の記録画面になります。"],
+  ["tbl",[["操作","やり方"],
+    ["利用者を追加","「⚙️ 編集」→「➕ B型」「➕ A型」「➕ 就労」。区分ごとにボタンが分かれています。"],
+    ["まとめて入れ替え","「⚙️ 編集」→「📋 一括入替」。1行に1名ずつ貼り付けます。名簿から外した方のデータは消えず、同じ氏名で再追加すると戻ります。"],
+    ["並べ替え・氏名変更・削除","「⚙️ 編集」中に出る ↑ ↓ ✏️ 🗑 で行います。"],
+    ["B型／A型／就労移行の切替","「⚙️ 編集」中、氏名の左の小さな四角（B/A/就）を押すたびに切り替わります。"],
+    ["さがす","名簿の上の「🔍 検索」に名前の一部を入れます。"]]],
+  ["h","氏名の横に出る印"],
+  ["tbl",[["印","意味"],
+    ["●（緑の点）","何かデータが入っている方です。"],
+    ["⚠️ 更新時期","個別支援計画の更新時期（利用開始から半年ごと）を過ぎています。"],
+    ["⏳ まもなく更新","更新まで30日以内です。"],
+    ["📄 受給者証 期限切れ","受給者証の支給満了日を過ぎています。"],
+    ["📄 受給者証 まもなく","満了まで60日以内です。更新申請の準備をしてください。"],
+    ["○○さん 編集中","他の職員が同じ方を開いています。"]]]]},
+
+ {ic:"📋",t:"個別支援計画書のタブ",b:[
+  ["p","1人の利用者について作る書類がまとまっています。左の縦メニューから選びます。データはどの画面からでも共通です。"],
+  ["tbl",[["メニュー","内容"],
+   ["👤 利用者マスタ","ふりがな・生年月日・住所・緊急連絡先・ご家族・かかりつけ医など、基本の情報。"],
+   ["📋 個別支援計画書","意向・援助方針・長期目標・短期目標・支援目標①②・5領域の視点。印刷してそのまま使えます。"],
+   ["📊 実施状況","モニタリングの所見。支援目標ごとに書きます。"],
+   ["💬 面談記録","計画変更の面談記録（現状・検討事項・対応）。"],
+   ["📝 支援記録","日々の支援の記録。実績記録に入れた「支援内容」がそのまま初期値で入ります。"],
+   ["🧩 障害特性","手帳の種別ごとの代表的な特性を選び、アセスメントへ反映できます。"],
+   ["🔍 アセスメント","現状・本人の意向を領域ごとに整理します。「📋 個別支援計画書へAI反映」で計画書の下書きが作れます。"],
+   ["🤝 ケース会議の要点","会議の記録。出席者・検討内容・今後の方針。"],
+   ["📄 書類作成","計画書・ケース会議・面談記録の下書きをAIでまとめて作ります。"],
+   ["🗓️ 予定表","計画の更新時期と受給者証の期限の管理（次の章）。"]]],
+  ["h","AIボタンについて"],
+  ["p","「🤖 AI生成」「🤖 AI一括生成」を押すと、入力済みの内容をもとに文章の下書きを作ります。作られた文章は必ず職員が読み、ご本人の実際の状況に合わせて直してからお使いください。"],
+  ["warn","AIの文章はあくまで下書きです。診断・等級判定には使えません。障害特性の記載も一般的な内容ですので、必ず加筆・修正してください。"]]},
+
+ {ic:"🗓️",t:"予定表（更新と受給者証の期限）",b:[
+  ["p","個別支援計画書タブの一番下にあります。利用者全員をまとめて見る表です。"],
+  ["h","入れる日付は3つだけ"],
+  ["tbl",[["欄","入れる日","何が起きるか"],
+   ["利用開始日","サービスを使い始めた日","その日から半年（6か月）ごとに、計画の更新予定が自動で並びます。"],
+   ["支給開始日","受給者証の支給決定が始まる日","表に記録として残ります。"],
+   ["支給満了日","受給者証の有効期限","満了の60日前から「📄 受給者証」の警告が出ます。"]]],
+  ["h","表の見方"],
+  ["tbl",[["印","意味"],
+   ["更（赤）","更新時期を過ぎています。"],
+   ["更（オレンジ）","30日以内に更新時期がきます。"],
+   ["更（青）","先の予定です。"],
+   ["✅（緑）","更新済みです。「更」を押すと切り替わります。"],
+   ["証","受給者証の支給満了日です。"]]],
+  ["p","「予定表（全体）」は月ごと、「予定表（月間）」は日ごとの表です。上の「◀ 半年前／半年後 ▶／今月へ」で期間を動かせます。"],
+  ["tip","更新が終わったら「更」を押して ✅ にしてください。次の半年後が自動で次回予定になり、警告も消えます。"]]},
+
+ {ic:"📅",t:"実績記録・在宅記録",b:[
+  ["p","上のタブ「B型実績記録」です（A型・就労移行はそれぞれのタブの中にあります）。"],
+  ["h","出欠の区分"],
+  ["tbl",[["記号","意味"],["通","通所（事業所に来た日）"],["外","施設外就労"],["在","在宅利用"],["欠","欠席（加算を取らない）"],["加","欠席時対応加算をとる欠席"]]],
+  ["p","日ごとに区分・開始／終了時刻・食事・送迎（往・復）・備考（支援内容）を入れます。備考は「⚙️ 設定」で登録した定型文から選べます。"],
+  ["tip","区分を「在」にすると、「🏠 在宅記録」の画面に同じ日の欄が出てきます。開始・終了時刻も引き継がれます。支援内容はAIで下書きが作れます。"],
+  ["warn","欠席時対応加算（「加」）は原則として月4回までです。超えると赤で表示されます。"]]},
+
+ {ic:"💰",t:"工賃計算と帳票（B型）",b:[
+  ["p","上のタブ「B型工賃計算」です。左の縦メニューから帳票を選びます。集計のもとになるのは実績記録の入力です。"],
+  ["tbl",[["メニュー","内容"],
+   ["💰 工賃計算","利用者全員の月の工賃を計算します。時給・作業時間などを入れると自動で合計されます。"],
+   ["📃 工賃明細書","一人ずつの工賃明細。印刷してお渡しできます。"],
+   ["🧾 請求書・領収証","利用者負担額などの請求書・領収証。"],
+   ["📨 給付費のお知らせ","給付費の通知。受給者証から手で入力します。"],
+   ["📆 利用日集計","月ごとの利用日数の集計。"],
+   ["📊 出席状況","出席率の一覧。CSVでも出せます。"],
+   ["📋 様式第二・請求確認","国保連への請求の確認画面（次の章）。"],
+   ["🧮 国保連請求 月次集計","利用日数・欠席加算・食事・送迎の集計とCSV出力。"]]],
+  ["tip","銀行振込データ（全銀フォーマット）も工賃計算の画面から出せます。振込前に必ず銀行の確認画面で金額・口座をご確認ください。"]]},
+
+ {ic:"🧮",t:"国保連への請求",b:[
+  ["p","このソフトから国保連へ直接送ることはできません。電子請求受付システム（簡易入力システム）に取り込むためのCSVを作る、または転記・照合に使う画面です。"],
+  ["h","おおまかな流れ"],
+  ["ol",["実績記録を最後まで入力する（受給者証番号も忘れずに）。",
+        "「🏢 事業所設定」で事業所番号を入れる。「⚙️ 国保連設定」で市町村番号を入れる。",
+        "「📋 様式第二・請求確認」で内容を確認する。",
+        "「📥 実績記録票CSV（取込用）」を出し、電子請求受付システムの【実績記録票取込】から読み込む。",
+        "明細書は画面の内容を見ながら、簡易入力システムで作成・確認する。"]],
+  ["warn","出力の前に、受給者証番号・利用日数・加算の有無を必ずご確認ください。おかしい点があるとブザーと警告が出ますが、最終確認は職員の目でお願いします。"]]},
+
+ {ic:"🅰️",t:"A型・就労移行支援",b:[
+  ["p","上のタブ「A型」「就労移行」は、それぞれの利用者だけを集めた画面です。工賃（賃金）計算・明細・請求書・実績記録・様式第二まで、同じ流れで使えます。"],
+  ["tbl",[["A型","最低賃金と連動した時給計算、スコア方式の基本報酬、A型加算一覧、賃金向上・自己評価に関する項目があります。"],
+          ["就労移行","就労定着者割合など、就労移行に必要な項目に対応しています。"]]],
+  ["tip","利用者がどの区分かは、名簿の「⚙️ 編集」中に氏名の左の四角（B/A/就）を押して切り替えます。区分を変えると、その方は対応するタブに現れます。"]]},
+
+ {ic:"🏢",t:"事業所の記録",b:[
+  ["p","利用者ごとではなく、事業所として残す記録です。実地指導で必ず確認される書類が入っています。利用者を選ばずに使えます。"],
+  ["tbl",[["メニュー","内容"],
+   ["🛡️ 虐待防止","責任者・委員会の設置日・通報窓口／委員会の記録／研修の記録／通報・相談を受けた場合の記録。"],
+   ["🤲 身体拘束等の適正化","担当者・指針の策定日／やむを得ず拘束を行った場合の記録（3要件と説明）／委員会／研修。"],
+   ["🌪️ BCP・訓練","感染症・自然災害の計画／訓練の記録／見直しの記録。"],
+   ["📢 情報公表・自己評価","情報公表システムへの報告／自己評価と公表の記録。"]]],
+  ["p","どの表も「＋ 記録を追加」で行が増え、その場で書けます。見出しに「今年度の記録 ◯件」と出るので、実施状況がひと目で分かります。"],
+  ["warn","これらの記録が残っていないと、報酬の減算対象になることがあります（減算率は「様式第二・請求確認」タブの減算一覧をご確認ください）。この画面は記録用で、請求の金額計算には影響しません。"]]},
+
+ {ic:"💾",t:"保存・バックアップ・複数の職員で使う",b:[
+  ["h","保存のしくみ"],
+  ["p","入力すると自動でこの端末に保存され、少し遅れてクラウドにも保存されます。画面左下に「端末保存」「クラウド同期済」の時刻が出ます。"],
+  ["h","控えを取る・移す"],
+  ["tbl",[["💾 バックアップ","全利用者のデータ・名簿・事業所設定を1つのファイルに書き出します。月に1回など、定期的に取ってください。"],
+          ["📂 復元","書き出したファイルを読み込んで元に戻します。いまのデータは置き換わります。"]]],
+  ["h","複数の職員で同時に使うとき"],
+  ["ul",["いま使っている職員が、左の欄に一覧で出ます。",
+        "同じ利用者を他の職員が開いていると、名簿に「○○さん 編集中」と出ます。",
+        "同じ利用者を同時に直して食い違ったときは、画面の上に「他の職員が先に保存しました」と出ます。基本は「相手に合わせる（推奨）」を押してください。自分の入力を残したいときだけ「自分で上書き」です。",
+        "職員の追加・PINの変更・削除は、管理者が「👥 職員の管理」から行います。"]],
+  ["warn","事業所を複数お使いの場合は、左上の「🏢 事業所切替」で切り替えます。データは事業所ごとに分かれて保存されます。"]]},
+
+ {ic:"❓",t:"困ったとき（よくある質問）",b:[
+  ["tbl",[["こんなとき","こうしてください"],
+   ["入力したのに消えてしまった","画面左下の「端末保存」の時刻をご確認ください。時刻が更新されていない場合は、ブラウザを閉じずに「💾 バックアップ」を取り、販売元へご連絡ください。"],
+   ["別のパソコンでも使いたい","同じ事業所コードとご自身のPINでログインすれば、クラウド経由で同じデータが見られます。うまくいかないときは「💾 バックアップ」→ 別のパソコンで「📂 復元」でも移せます。"],
+   ["名簿から消した人のデータは？","消えていません。同じ氏名で追加し直すと戻ります。"],
+   ["印刷すると画面のボタンまで出る","「🖨️ 印刷」ボタンから印刷してください。ブラウザのメニューから印刷しても、ボタン類は印刷されない設定になっています。用紙はA4縦が基本です。"],
+   ["AIが動かない","インターネットに接続されているかご確認ください。しばらく待って、もう一度お試しください。"],
+   ["「新しいバージョンが出ています」と出た","販売元から新しいファイルをお受け取りのうえ、いまのファイルと差し替えてください。データは残ります（心配な場合は先にバックアップを取ってください）。"],
+   ["パスコードを忘れた","暗号化された記録は元に戻せません。バックアップファイルがあれば、そこから復元してください。"]]],
+  ["h","お問い合わせ"],
+  ["p","不具合やご要望は、上のタブ「⚠️ お客様苦情受付」からご連絡ください。内容を書いて「📧 管理者メール作成」を押すと、メールソフトが立ち上がります。"]]}
+];
+
+function ManualTab({i,q,setQ}){
+  const sec=MANUAL[i]||MANUAL[0];
+  const hit=(txt)=>q&&String(txt).toLowerCase().includes(q.toLowerCase());
+  const found=q?MANUAL.map((s,si)=>({si,s,lines:s.b.flatMap(b=>{
+    if(b[0]==="tbl")return b[1].slice(1).filter(r=>r.some(c=>hit(c))).map(r=>r.join("　…　"));
+    if(b[0]==="ul"||b[0]==="ol")return b[1].filter(x=>hit(x));
+    return hit(b[1])?[b[1]]:[];
+  })})).filter(x=>x.lines.length||hit(x.s.t)):[];
+  const blk=(b,k)=>{
+    if(b[0]==="h")return <div key={k} style={{fontSize:13,fontWeight:"bold",color:G,borderLeft:"4px solid "+GM,padding:"2px 0 2px 8px",margin:"14px 0 6px"}}>{b[1]}</div>;
+    if(b[0]==="p")return <p key={k} style={{fontSize:12.5,lineHeight:2,color:"#333",margin:"0 0 8px"}}>{b[1]}</p>;
+    if(b[0]==="ul")return <ul key={k} style={{fontSize:12.5,lineHeight:2,color:"#333",margin:"0 0 8px",paddingLeft:22}}>{b[1].map((x,j)=><li key={j}>{x}</li>)}</ul>;
+    if(b[0]==="ol")return <ol key={k} style={{fontSize:12.5,lineHeight:2,color:"#333",margin:"0 0 8px",paddingLeft:22}}>{b[1].map((x,j)=><li key={j}>{x}</li>)}</ol>;
+    if(b[0]==="tip")return <div key={k} style={{background:"#E8F5E9",border:"1px solid #A5D6A7",borderRadius:6,padding:"8px 12px",fontSize:12,lineHeight:1.9,color:"#1B5E20",margin:"0 0 10px"}}>💡 {b[1]}</div>;
+    if(b[0]==="warn")return <div key={k} style={{background:"#FFF8E1",border:"1px solid #FFE082",borderRadius:6,padding:"8px 12px",fontSize:12,lineHeight:1.9,color:"#5D4037",margin:"0 0 10px"}}>⚠️ {b[1]}</div>;
+    if(b[0]==="tbl")return <div key={k} style={{overflowX:"auto",marginBottom:12}}>
+      <table style={{borderCollapse:"collapse",width:"100%",fontSize:12}}>
+        <tbody>
+          {b[1].map((r,ri)=><tr key={ri}>{r.map((c,ci)=>ri===0
+            ? <th key={ci} style={{...th,minWidth:ci===0?130:200,textAlign:"left",padding:"6px 10px"}}>{c}</th>
+            : <td key={ci} style={{...td,padding:"6px 10px",lineHeight:1.9,fontWeight:ci===0?"bold":"normal",color:ci===0?G:"#333",whiteSpace:"normal"}}>{c}</td>)}</tr>)}
+        </tbody>
+      </table></div>;
+    return null;
+  };
+  return <div style={{padding:14}}>
+    <Header title={"📖 説明書 ― "+sec.ic+" "+sec.t}><PrtBtn/></Header>
+    <div className="np" style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,flexWrap:"wrap"}}>
+      <input value={q} onChange={e=>setQ(e.target.value)} placeholder={"🔍 説明書の中をさがす（例：バックアップ、欠席、受給者証）"}
+        style={{flex:1,minWidth:240,padding:"7px 10px",fontSize:12,border:"1px solid #C8E6C9",borderRadius:5}}/>
+      {q&&<button onClick={()=>setQ("")} style={{padding:"6px 12px",fontSize:11,background:"#eee",border:"none",borderRadius:5,cursor:"pointer"}}>× 検索をやめる</button>}
+    </div>
+    {q
+      ? <div>
+          <div style={{fontSize:12,color:"#666",marginBottom:8}}>「{q}」に一致する説明：{found.length}件の章</div>
+          {found.length===0&&<div style={{padding:24,textAlign:"center",color:"#999",fontSize:12}}>見つかりませんでした。別の言葉でお試しください。</div>}
+          {found.map(f=>(
+            <div key={f.si} style={{border:"1px solid #C8E6C9",borderRadius:6,marginBottom:10,overflow:"hidden"}}>
+              <div style={{background:GM,color:"#fff",padding:"5px 12px",fontSize:12,fontWeight:"bold"}}>{f.s.ic} {f.s.t}</div>
+              <div style={{padding:"8px 12px"}}>
+                {f.lines.slice(0,6).map((l,j)=><div key={j} style={{fontSize:12,lineHeight:1.9,color:"#333",borderBottom:"1px dotted #C8E6C9",padding:"3px 0"}}>{l}</div>)}
+                {f.lines.length===0&&<div style={{fontSize:12,color:"#666"}}>この章の見出しが一致しました。</div>}
+              </div>
+            </div>
+          ))}
+        </div>
+      : <div style={{background:"#fff",border:"1px solid #C8E6C9",borderRadius:8,padding:"14px 18px"}}>
+          {sec.b.map((b,k)=>blk(b,k))}
+          <div style={{marginTop:16,paddingTop:10,borderTop:"1px dashed #C8E6C9",fontSize:10.5,color:"#999"}}>Anna AI支援記録　説明書（{KK_APP_VERSION}版）　左のメニューで章を選べます。困ったときは「❓ 困ったとき」をご覧ください。</div>
+        </div>}
+  </div>;
+}
+
 function MonthNav({ym,setYm}){
   const mv=(d)=>{const [y,m]=ym.split("-").map(Number);const dt=new Date(y,m-1+d,1);setYm(monthKey(dt));};
   return <div style={{display:"flex",alignItems:"center",gap:6}}>
@@ -13081,6 +13286,8 @@ function App({facility,session,onLogout}){
   const [schedNoticeOff,setSchedNoticeOff]=useState(false); // v7.91: 更新時期のお知らせ帯を閉じたかどうか
   const [subFold,setSubFold]=useState(false); // v7.92: 各タブの左の縦メニューをたたむ（画面を広く使う）
   const [kirokuSub,setKirokuSub]=useState(0); // v7.95: 事業所の記録タブの左メニュー
+  const [manualSub,setManualSub]=useState(0); // v7.96: 説明書の章
+  const [manualQ,setManualQ]=useState("");    // v7.96: 説明書の検索
   const [cloudLoaded,setCloudLoaded]=useState(false);
   const [staffList,setStaffList]=useState([]);
   const [staffOpen,setStaffOpen]=useState(false);
@@ -13645,7 +13852,7 @@ function App({facility,session,onLogout}){
     setTab(1); setPlanSub(1); // AI反映後は個別支援計画書（左メニューの計画書）を開く
   };
 
-    const TABS=[["👤","\u5229\u7528\u8005\u30DE\u30B9\u30BF"],["📋","\u500B\u5225\u652F\u63F4\u8A08\u753B\u66F8"],["📊","\u5B9F\u65BD\u72B6\u6CC1"],["💬","\u9762\u8AC7\u8A18\u9332"],["📝","\u652F\u63F4\u8A18\u9332"],["🧩","\u969C\u5BB3\u7279\u6027"],["🔍","\u30A2\u30BB\u30B9\u30E1\u30F3\u30C8"],["🤝","\u30B1\u30FC\u30B9\u4F1A\u8B70"],["📄","\u66F8\u985E\u4F5C\u6210"],["📅","B型\u5B9F\u7E3E\u8A18\u9332"],["🧮","\u8ACB\u6C42\u96C6\u8A08"],["💰","B型\u5DE5\u8CC3\u8A08\u7B97"],["📃","\u5DE5\u8CC3\u660E\u7D30"],["🧾","\u8ACB\u6C42\u66F8\u30FB\u9818\u53CE\u8A3C"],["📨","\u7D66\u4ED8\u8CBB\u901A\u77E5"],["🏠","\u5728\u5B85\u8A18\u9332"],["📆","利用日集計"],["📊","出席状況"],["\u26A0\uFE0F","\u304A\u5BA2\u69D8\u82E6\u60C5\u53D7\u4ED8"],["📋","\u69D8\u5F0F\u7B2C\u4E8C\u30FB\u8ACB\u6C42\u78BA\u8A8D"],["🅰️","A型"],["🅰️","A型様式第二・請求確認"],["🚶","就労移行"],["🏢","事業所の記録"]];
+    const TABS=[["👤","\u5229\u7528\u8005\u30DE\u30B9\u30BF"],["📋","\u500B\u5225\u652F\u63F4\u8A08\u753B\u66F8"],["📊","\u5B9F\u65BD\u72B6\u6CC1"],["💬","\u9762\u8AC7\u8A18\u9332"],["📝","\u652F\u63F4\u8A18\u9332"],["🧩","\u969C\u5BB3\u7279\u6027"],["🔍","\u30A2\u30BB\u30B9\u30E1\u30F3\u30C8"],["🤝","\u30B1\u30FC\u30B9\u4F1A\u8B70"],["📄","\u66F8\u985E\u4F5C\u6210"],["📅","B型\u5B9F\u7E3E\u8A18\u9332"],["🧮","\u8ACB\u6C42\u96C6\u8A08"],["💰","B型\u5DE5\u8CC3\u8A08\u7B97"],["📃","\u5DE5\u8CC3\u660E\u7D30"],["🧾","\u8ACB\u6C42\u66F8\u30FB\u9818\u53CE\u8A3C"],["📨","\u7D66\u4ED8\u8CBB\u901A\u77E5"],["🏠","\u5728\u5B85\u8A18\u9332"],["📆","利用日集計"],["📊","出席状況"],["\u26A0\uFE0F","\u304A\u5BA2\u69D8\u82E6\u60C5\u53D7\u4ED8"],["📋","\u69D8\u5F0F\u7B2C\u4E8C\u30FB\u8ACB\u6C42\u78BA\u8A8D"],["🅰️","A型"],["🅰️","A型様式第二・請求確認"],["🚶","就労移行"],["🏢","事業所の記録"],["📖","説明書"]];
   const tabSvc = tab===20?"A":tab===22?"I":(tab===9||tab===11)?"B":null; // 区分タブ表示中は名簿もその区分に連動
   const filtered=names.filter(n=>n.replace(/\s/g,"").includes(q.replace(/\s/g,""))&&(editMode||!tabSvc||getSvc(n)===tabSvc));
 
@@ -13904,10 +14111,10 @@ function App({facility,session,onLogout}){
       </div>}
       {staffOpen&&<StaffManager staffList={staffList} setStaffList={setStaffList} me={session} onClose={()=>setStaffOpen(false)}/>}
       <div className="np" style={{display:"flex",background:"#fff",borderBottom:"2px solid #C8E6C9",flexShrink:0,overflowX:"auto"}}>
-        {[1,9,11,20,22,23,18].map(i=>{const [icon,label]=TABS[i];return <button key={i} onClick={()=>setTab(i)} style={{padding:"9px 10px",border:"none",cursor:"pointer",fontSize:11,fontWeight:tab===i?"bold":"normal",background:"transparent",color:tab===i?G:"#888",borderBottom:tab===i?"3px solid #388E3C":"3px solid transparent",whiteSpace:"nowrap"}}>{icon} {label}</button>;})}
+        {[1,9,11,20,22,23,18,24].map(i=>{const [icon,label]=TABS[i];return <button key={i} onClick={()=>setTab(i)} style={{padding:"9px 10px",border:"none",cursor:"pointer",fontSize:11,fontWeight:tab===i?"bold":"normal",background:"transparent",color:tab===i?G:"#888",borderBottom:tab===i?"3px solid #388E3C":"3px solid transparent",whiteSpace:"nowrap"}}>{icon} {label}</button>;})}
       </div>
       <div style={{flex:1,overflowY:"auto"}}>
-        {!sel&&tab!==9&&tab!==10&&tab!==18&&tab!==19&&tab!==23&&<div style={{textAlign:"center",paddingTop:50,color:"#888",fontSize:14}}>
+        {!sel&&tab!==9&&tab!==10&&tab!==18&&tab!==19&&tab!==23&&tab!==24&&<div style={{textAlign:"center",paddingTop:50,color:"#888",fontSize:14}}>
           {names.length===0?<div style={{display:"inline-block",textAlign:"left",background:"#fff",border:"1px solid #C8E6C9",borderRadius:8,padding:"18px 24px",lineHeight:2.1,fontSize:13}}>
             <div style={{fontWeight:"bold",color:G,fontSize:15,marginBottom:6}}>🌱 はじめての設定（3ステップ）</div>
             ① 左下の <b style={{color:"#5D4037"}}>🏢 事業所設定</b> で事業所名・サービス管理責任者を記入<br/>
@@ -14005,6 +14212,18 @@ function App({facility,session,onLogout}){
           </div>
         </div>}
         {tab===18&&<CustomerComplaintTab/>}
+        {tab===24&&<div style={{display:"flex",alignItems:"stretch"}}>
+          {/* 左側の縦メニュー：説明書の章 */}
+          <div className="np" style={{width:subFold?24:150,flexShrink:0,display:"flex",flexDirection:"column",gap:4,padding:subFold?"8px 2px":"14px 8px",background:"#F1F8E9",borderRight:"2px solid #C8E6C9"}}>
+            <button onClick={()=>setSubFold(!subFold)} title={subFold?"メニューを開く":"メニューをたたむ"} style={{background:"#fff",color:"#1B5E20",border:"1px solid #C8E6C9",borderRadius:5,cursor:"pointer",fontSize:9.5,fontWeight:"bold",padding:subFold?"6px 0":"4px 0",width:"100%",whiteSpace:"nowrap",overflow:"hidden",marginBottom:2,...(subFold?{writingMode:"vertical-rl",letterSpacing:1,height:118,alignSelf:"center",position:"sticky",top:8,padding:"8px 0"}:{flexShrink:0})}}>{subFold?"\u25B6 \u30E1\u30CB\u30E5\u30FC":"\u25C0 \u305F\u305F\u3080"}</button>
+            {!subFold&&<div style={{fontSize:10,fontWeight:"bold",color:"#888",padding:"0 4px 2px"}}>📖 説明書の目次</div>}
+            {!subFold&&MANUAL.map((sc,i)=>
+              <button key={i} onClick={()=>{setManualSub(i);setManualQ("");}} style={{textAlign:"left",padding:"9px 10px",border:"none",borderRadius:6,cursor:"pointer",fontSize:12,fontWeight:manualSub===i?"bold":"normal",background:manualSub===i?"#388E3C":"#fff",color:manualSub===i?"#fff":"#1B5E20",borderLeft:manualSub===i?"4px solid #1B5E20":"4px solid #C8E6C9",whiteSpace:"normal",lineHeight:1.45}}>{sc.ic} {sc.t}</button>)}
+          </div>
+          <div style={{flex:1,minWidth:0}}>
+            <ManualTab i={manualSub} q={manualQ} setQ={setManualQ}/>
+          </div>
+        </div>}
                 {tab===20&&(()=>{const aNames=names.filter(x=>((allData[x]||{}).svcType==="A"));return <div style={{display:"flex",alignItems:"stretch"}}>
           {/* A型（就労継続支援A型）：左の縦メニューから各帳票へ。集計対象はA型の利用者のみ */}
           <div className="np" style={{width:subFold?24:150,flexShrink:0,display:"flex",flexDirection:"column",gap:4,padding:subFold?"8px 2px":"14px 8px",background:"#FFF3E0",borderRight:"2px solid #FFCC80"}}>
