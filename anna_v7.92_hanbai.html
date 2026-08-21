@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>Anna AI支援記録 AI版 v7.91 販売版</title>
+<title>Anna AI支援記録 AI版 v7.92 販売版</title>
 <script>/* encoding-japanese v2.1.0 を直接埋め込み（CDN接続不要化 v7.53） */
 /*!
  * encoding-japanese v2.1.0 - Convert and detect character encoding in JavaScript
@@ -188,7 +188,7 @@ function kkTrialRemainDays(){
 // ===== 更新お知らせ v7.60 =====
 // GitHub上の app_version.json の latest が自分より新しければ、右下に案内を表示する。
 // 表示のみ（利用は止めない）。通信できない場合は何もしない。
-var KK_APP_VERSION = "7.91";
+var KK_APP_VERSION = "7.92";
 var KK_VERSION_URLS = [
   "https://raw.githubusercontent.com/kinkonkan6262/6262/main/app_version.json",
   "https://kinkonkan6262.github.io/6262/app_version.json"
@@ -12876,6 +12876,7 @@ function App({facility,session,onLogout}){
   const [cloudAt,setCloudAt]=useState("");        // v7.51: クラウド保存が「実際に成功」した時刻（ローカル保存と区別する）
   const [remoteUpdate,setRemoteUpdate]=useState(""); // v7.51: 開いている利用者に他職員の更新が届いたときの通知
   const [schedNoticeOff,setSchedNoticeOff]=useState(false); // v7.91: 更新時期のお知らせ帯を閉じたかどうか
+  const [subFold,setSubFold]=useState(false); // v7.92: 各タブの左の縦メニューをたたむ（画面を広く使う）
   const [cloudLoaded,setCloudLoaded]=useState(false);
   const [staffList,setStaffList]=useState([]);
   const [staffOpen,setStaffOpen]=useState(false);
@@ -13699,9 +13700,10 @@ function App({facility,session,onLogout}){
         {sel&&tab===0&&<MasterTab sel={sel} master={master} setMaster={setMaster} disab={disab} disabMemo={disabMemo} goDisab={()=>setTab(5)}/>}
         {sel&&tab===1&&<div style={{display:"flex",alignItems:"stretch"}}>
           {/* 左側の縦メニュー：個別支援計画書に関連する書類へワンクリックで移動（データは各タブと共通） */}
-          <div className="np" style={{width:150,flexShrink:0,display:"flex",flexDirection:"column",gap:4,padding:"14px 8px",background:"#F1F8E9",borderRight:"2px solid #C8E6C9"}}>
-            <div style={{fontSize:10,fontWeight:"bold",color:"#888",padding:"0 4px 2px"}}>📚 関連書類（{sel}）</div>
-            {[[0,"👤","利用者マスタ"],[1,"📋","個別支援計画書"],[2,"📊","実施状況"],[3,"💬","面談記録"],[4,"📝","支援記録"],[5,"🧩","障害特性"],[6,"🔍","アセスメント"],[7,"🤝","ケース会議の要点"],[8,"📄","書類作成"],[9,"🗓️","予定表"]].map(([i,ic,l])=>
+          <div className="np" style={{width:subFold?24:150,flexShrink:0,display:"flex",flexDirection:"column",gap:4,padding:subFold?"8px 2px":"14px 8px",background:"#F1F8E9",borderRight:"2px solid #C8E6C9"}}>
+            <button onClick={()=>setSubFold(!subFold)} title={subFold?"メニューを開く":"メニューをたたむ"} style={{background:"#fff",color:"#1B5E20",border:"1px solid #C8E6C9",borderRadius:5,cursor:"pointer",fontSize:9.5,fontWeight:"bold",padding:subFold?"6px 0":"4px 0",width:"100%",whiteSpace:"nowrap",overflow:"hidden",marginBottom:2,...(subFold?{writingMode:"vertical-rl",letterSpacing:1,height:118,alignSelf:"center",position:"sticky",top:8,padding:"8px 0"}:{flexShrink:0})}}>{subFold?"\u25B6 \u30E1\u30CB\u30E5\u30FC":"\u25C0 \u305F\u305F\u3080"}{subFold&&schedOverNames.length>0?" ⚠️":""}</button>
+            {!subFold&&<div style={{fontSize:10,fontWeight:"bold",color:"#888",padding:"0 4px 2px"}}>📚 関連書類（{sel}）</div>}
+            {!subFold&&[[0,"👤","利用者マスタ"],[1,"📋","個別支援計画書"],[2,"📊","実施状況"],[3,"💬","面談記録"],[4,"📝","支援記録"],[5,"🧩","障害特性"],[6,"🔍","アセスメント"],[7,"🤝","ケース会議の要点"],[8,"📄","書類作成"],[9,"🗓️","予定表"]].map(([i,ic,l])=>
               <button key={i} onClick={()=>setPlanSub(i)} style={{textAlign:"left",padding:"9px 10px",border:"none",borderRadius:6,cursor:"pointer",fontSize:12,fontWeight:planSub===i?"bold":"normal",background:planSub===i?"#388E3C":"#fff",color:planSub===i?"#fff":"#1B5E20",borderLeft:planSub===i?"4px solid #1B5E20":"4px solid #C8E6C9",whiteSpace:"nowrap"}}>{ic} {l}{i===9&&schedOverNames.length>0&&<span style={{marginLeft:4,background:"#C62828",color:"#fff",borderRadius:8,padding:"0 5px",fontSize:9,fontWeight:"bold"}}>{schedOverNames.length}</span>}</button>)}
           </div>
           {/* 右側：選択中の書類（既存の各タブ画面をそのまま表示） */}
@@ -13727,9 +13729,10 @@ function App({facility,session,onLogout}){
         {sel&&tab===8&&<DocTab d={d} s={s}/>}
         {tab===9&&<div style={{display:"flex",alignItems:"stretch"}}>
           {/* 左側の縦メニュー：実績記録に関連する記録へワンクリックで移動（データは各タブと共通） */}
-          <div className="np" style={{width:150,flexShrink:0,display:"flex",flexDirection:"column",gap:4,padding:"14px 8px",background:"#F1F8E9",borderRight:"2px solid #C8E6C9"}}>
-            <div style={{fontSize:10,fontWeight:"bold",color:"#888",padding:"0 4px 2px"}}>📚 実績関係（{sel||"利用者未選択"}）</div>
-            {[[0,"📅","実績記録"],[1,"🏠","在宅記録"]].map(([i,ic,l])=>
+          <div className="np" style={{width:subFold?24:150,flexShrink:0,display:"flex",flexDirection:"column",gap:4,padding:subFold?"8px 2px":"14px 8px",background:"#F1F8E9",borderRight:"2px solid #C8E6C9"}}>
+            <button onClick={()=>setSubFold(!subFold)} title={subFold?"メニューを開く":"メニューをたたむ"} style={{background:"#fff",color:"#1B5E20",border:"1px solid #C8E6C9",borderRadius:5,cursor:"pointer",fontSize:9.5,fontWeight:"bold",padding:subFold?"6px 0":"4px 0",width:"100%",whiteSpace:"nowrap",overflow:"hidden",marginBottom:2,...(subFold?{writingMode:"vertical-rl",letterSpacing:1,height:118,alignSelf:"center",position:"sticky",top:8,padding:"8px 0"}:{flexShrink:0})}}>{subFold?"\u25B6 \u30E1\u30CB\u30E5\u30FC":"\u25C0 \u305F\u305F\u3080"}</button>
+            {!subFold&&<div style={{fontSize:10,fontWeight:"bold",color:"#888",padding:"0 4px 2px"}}>📚 実績関係（{sel||"利用者未選択"}）</div>}
+            {!subFold&&[[0,"📅","実績記録"],[1,"🏠","在宅記録"]].map(([i,ic,l])=>
               <button key={i} onClick={()=>setAttSub(i)} style={{textAlign:"left",padding:"9px 10px",border:"none",borderRadius:6,cursor:"pointer",fontSize:12,fontWeight:attSub===i?"bold":"normal",background:attSub===i?"#388E3C":"#fff",color:attSub===i?"#fff":"#1B5E20",borderLeft:attSub===i?"4px solid #1B5E20":"4px solid #C8E6C9",whiteSpace:"normal",lineHeight:1.45}}>{ic} {l}</button>)}
           </div>
           <div style={{flex:1,minWidth:0}}>
@@ -13740,9 +13743,10 @@ function App({facility,session,onLogout}){
         {tab===10&&<BillTab names={names} allData={allData}/>}
         {tab===11&&(()=>{const bNames=names.filter(x=>{const t=(allData[x]||{}).svcType;return t!=="A"&&t!=="I";});return <div style={{display:"flex",alignItems:"stretch"}}>
           {/* 左側の縦メニュー：工賃・給付費関係の帳票へワンクリックで移動（データは各タブと共通）。集計対象はB型の利用者のみ（A型はA型タブで扱う） */}
-          <div className="np" style={{width:150,flexShrink:0,display:"flex",flexDirection:"column",gap:4,padding:"14px 8px",background:"#F1F8E9",borderRight:"2px solid #C8E6C9"}}>
-            <div style={{fontSize:10,fontWeight:"bold",color:"#888",padding:"0 4px 2px"}}>📚 工賃・給付費関係</div>
-            {[[0,"💰","工賃計算"],[1,"📃","工賃明細書"],[2,"🧾","請求書・領収証"],[3,"📨","給付費のお知らせ"],[4,"📆","利用日集計"],[5,"📊","出席状況"],[6,"📋","様式第二・請求確認"],[7,"🧮","国保連請求 月次集計"]].map(([i,ic,l])=>
+          <div className="np" style={{width:subFold?24:150,flexShrink:0,display:"flex",flexDirection:"column",gap:4,padding:subFold?"8px 2px":"14px 8px",background:"#F1F8E9",borderRight:"2px solid #C8E6C9"}}>
+            <button onClick={()=>setSubFold(!subFold)} title={subFold?"メニューを開く":"メニューをたたむ"} style={{background:"#fff",color:"#1B5E20",border:"1px solid #C8E6C9",borderRadius:5,cursor:"pointer",fontSize:9.5,fontWeight:"bold",padding:subFold?"6px 0":"4px 0",width:"100%",whiteSpace:"nowrap",overflow:"hidden",marginBottom:2,...(subFold?{writingMode:"vertical-rl",letterSpacing:1,height:118,alignSelf:"center",position:"sticky",top:8,padding:"8px 0"}:{flexShrink:0})}}>{subFold?"\u25B6 \u30E1\u30CB\u30E5\u30FC":"\u25C0 \u305F\u305F\u3080"}</button>
+            {!subFold&&<div style={{fontSize:10,fontWeight:"bold",color:"#888",padding:"0 4px 2px"}}>📚 工賃・給付費関係</div>}
+            {!subFold&&[[0,"💰","工賃計算"],[1,"📃","工賃明細書"],[2,"🧾","請求書・領収証"],[3,"📨","給付費のお知らせ"],[4,"📆","利用日集計"],[5,"📊","出席状況"],[6,"📋","様式第二・請求確認"],[7,"🧮","国保連請求 月次集計"]].map(([i,ic,l])=>
               <button key={i} onClick={()=>setWageSub(i)} style={{textAlign:"left",padding:"9px 10px",border:"none",borderRadius:6,cursor:"pointer",fontSize:12,fontWeight:wageSub===i?"bold":"normal",background:wageSub===i?"#388E3C":"#fff",color:wageSub===i?"#fff":"#1B5E20",borderLeft:wageSub===i?"4px solid #1B5E20":"4px solid #C8E6C9",whiteSpace:"normal",lineHeight:1.45}}>{ic} {l}</button>)}
           </div>
           <div style={{flex:1,minWidth:0}}>
@@ -13766,9 +13770,10 @@ function App({facility,session,onLogout}){
         {tab===18&&<CustomerComplaintTab/>}
                 {tab===20&&(()=>{const aNames=names.filter(x=>((allData[x]||{}).svcType==="A"));return <div style={{display:"flex",alignItems:"stretch"}}>
           {/* A型（就労継続支援A型）：左の縦メニューから各帳票へ。集計対象はA型の利用者のみ */}
-          <div className="np" style={{width:150,flexShrink:0,display:"flex",flexDirection:"column",gap:4,padding:"14px 8px",background:"#FFF3E0",borderRight:"2px solid #FFCC80"}}>
-            <div style={{fontSize:10,fontWeight:"bold",color:"#E65100",padding:"0 4px 2px"}}>🅰️ 就労継続支援A型</div>
-            {[[0,"💰","工賃計算"],[1,"📃","工賃明細書"],[2,"🧾","請求書・領収証"],[3,"📨","給付費のお知らせ"],[4,"📆","利用日集計"],[5,"📊","出席状況"],[6,"📅","実績記録"],[7,"🏠","在宅記録"],[8,"📚","A型加算一覧"],[9,"📋","A型様式第二・請求確認"],[10,"🧮","国保連請求 月次集計"]].map(([i,ic,l])=>
+          <div className="np" style={{width:subFold?24:150,flexShrink:0,display:"flex",flexDirection:"column",gap:4,padding:subFold?"8px 2px":"14px 8px",background:"#FFF3E0",borderRight:"2px solid #FFCC80"}}>
+            <button onClick={()=>setSubFold(!subFold)} title={subFold?"メニューを開く":"メニューをたたむ"} style={{background:"#fff",color:"#E65100",border:"1px solid #FFCC80",borderRadius:5,cursor:"pointer",fontSize:9.5,fontWeight:"bold",padding:subFold?"6px 0":"4px 0",width:"100%",whiteSpace:"nowrap",overflow:"hidden",marginBottom:2,...(subFold?{writingMode:"vertical-rl",letterSpacing:1,height:118,alignSelf:"center",position:"sticky",top:8,padding:"8px 0"}:{flexShrink:0})}}>{subFold?"\u25B6 \u30E1\u30CB\u30E5\u30FC":"\u25C0 \u305F\u305F\u3080"}</button>
+            {!subFold&&<div style={{fontSize:10,fontWeight:"bold",color:"#E65100",padding:"0 4px 2px"}}>🅰️ 就労継続支援A型</div>}
+            {!subFold&&[[0,"💰","工賃計算"],[1,"📃","工賃明細書"],[2,"🧾","請求書・領収証"],[3,"📨","給付費のお知らせ"],[4,"📆","利用日集計"],[5,"📊","出席状況"],[6,"📅","実績記録"],[7,"🏠","在宅記録"],[8,"📚","A型加算一覧"],[9,"📋","A型様式第二・請求確認"],[10,"🧮","国保連請求 月次集計"]].map(([i,ic,l])=>
               <button key={i} onClick={()=>setASub(i)} style={{textAlign:"left",padding:"9px 10px",border:"none",borderRadius:6,cursor:"pointer",fontSize:12,fontWeight:aSub===i?"bold":"normal",background:aSub===i?"#E65100":"#fff",color:aSub===i?"#fff":"#5D4037",borderLeft:aSub===i?"4px solid #BF360C":"4px solid #FFCC80",whiteSpace:"normal",lineHeight:1.45}}>{ic} {l}</button>)}
           </div>
           <div style={{flex:1,minWidth:0}}>
@@ -13788,9 +13793,10 @@ function App({facility,session,onLogout}){
         </div>;})()}
         {tab===22&&(()=>{const iNames=names.filter(x=>((allData[x]||{}).svcType==="I"));return <div style={{display:"flex",alignItems:"stretch"}}>
           {/* 就労移行支援：左の縦メニューから各帳票へ。集計対象は就労移行の利用者のみ */}
-          <div className="np" style={{width:150,flexShrink:0,display:"flex",flexDirection:"column",gap:4,padding:"14px 8px",background:"#E1F5FE",borderRight:"2px solid #81D4FA"}}>
-            <div style={{fontSize:10,fontWeight:"bold",color:"#01579B",padding:"0 4px 2px"}}>🚶 就労移行支援</div>
-            {[[0,"💰","工賃計算"],[1,"📃","工賃明細書"],[2,"🧾","請求書・領収証"],[3,"📨","給付費のお知らせ"],[4,"📆","利用日集計"],[5,"📊","出席状況"],[6,"📅","実績記録"],[7,"🏠","在宅記録"],[8,"📋","様式第二・請求確認"],[9,"🧮","国保連請求 月次集計"]].map(([i,ic,l])=>
+          <div className="np" style={{width:subFold?24:150,flexShrink:0,display:"flex",flexDirection:"column",gap:4,padding:subFold?"8px 2px":"14px 8px",background:"#E1F5FE",borderRight:"2px solid #81D4FA"}}>
+            <button onClick={()=>setSubFold(!subFold)} title={subFold?"メニューを開く":"メニューをたたむ"} style={{background:"#fff",color:"#01579B",border:"1px solid #81D4FA",borderRadius:5,cursor:"pointer",fontSize:9.5,fontWeight:"bold",padding:subFold?"6px 0":"4px 0",width:"100%",whiteSpace:"nowrap",overflow:"hidden",marginBottom:2,...(subFold?{writingMode:"vertical-rl",letterSpacing:1,height:118,alignSelf:"center",position:"sticky",top:8,padding:"8px 0"}:{flexShrink:0})}}>{subFold?"\u25B6 \u30E1\u30CB\u30E5\u30FC":"\u25C0 \u305F\u305F\u3080"}</button>
+            {!subFold&&<div style={{fontSize:10,fontWeight:"bold",color:"#01579B",padding:"0 4px 2px"}}>🚶 就労移行支援</div>}
+            {!subFold&&[[0,"💰","工賃計算"],[1,"📃","工賃明細書"],[2,"🧾","請求書・領収証"],[3,"📨","給付費のお知らせ"],[4,"📆","利用日集計"],[5,"📊","出席状況"],[6,"📅","実績記録"],[7,"🏠","在宅記録"],[8,"📋","様式第二・請求確認"],[9,"🧮","国保連請求 月次集計"]].map(([i,ic,l])=>
               <button key={i} onClick={()=>setISub(i)} style={{textAlign:"left",padding:"9px 10px",border:"none",borderRadius:6,cursor:"pointer",fontSize:12,fontWeight:iSub===i?"bold":"normal",background:iSub===i?"#0277BD":"#fff",color:iSub===i?"#fff":"#01579B",borderLeft:iSub===i?"4px solid #01579B":"4px solid #81D4FA",whiteSpace:"normal",lineHeight:1.45}}>{ic} {l}</button>)}
           </div>
           <div style={{flex:1,minWidth:0}}>
