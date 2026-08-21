@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>Anna AI支援記録 AI版 v7.94 販売版</title>
+<title>Anna AI支援記録 AI版 v7.95 販売版</title>
 <script>/* encoding-japanese v2.1.0 を直接埋め込み（CDN接続不要化 v7.53） */
 /*!
  * encoding-japanese v2.1.0 - Convert and detect character encoding in JavaScript
@@ -188,7 +188,7 @@ function kkTrialRemainDays(){
 // ===== 更新お知らせ v7.60 =====
 // GitHub上の app_version.json の latest が自分より新しければ、右下に案内を表示する。
 // 表示のみ（利用は止めない）。通信できない場合は何もしない。
-var KK_APP_VERSION = "7.94";
+var KK_APP_VERSION = "7.95";
 var KK_VERSION_URLS = [
   "https://raw.githubusercontent.com/kinkonkan6262/6262/main/app_version.json",
   "https://kinkonkan6262.github.io/6262/app_version.json"
@@ -8607,6 +8607,145 @@ function SchedTab({names,allData,setAllData,onPick,sel}){
   </div>;
 }
 
+// ===== 事業所の記録（虐待防止・身体拘束・BCP・情報公表）v7.95 =====
+// 実地指導で必ず求められる「実施した証拠」を残すための画面。
+// 利用者ごとではなく事業所ごとの書類なので、事業所設定と同じ場所（office）に保存し、
+// クラウドにもそのまま同期される。請求の計算・CSV出力には一切関わらない。
+function nendoNow(){const d=new Date();return (d.getMonth()+1)<=3?d.getFullYear()-1:d.getFullYear();}
+function nendoOf(ymd){const p=String(ymd||"").split("-").map(Number);if(p.length<2||!p[0])return null;return p[1]<=3?p[0]-1:p[0];}
+function nendoLabel(y){return y?("令和"+(y-2018)+"年度（"+y+"/4〜"+(y+1)+"/3）"):"";}
+
+// 記録の一覧（行を足す・消す・その場で書き換える）。印刷にも対応。
+function KRList({title,note,cols,rows,setRows,tpl,color}){
+  const c=color||"#1B5E20";
+  const up=(i,k,v)=>setRows(rows.map((r,j)=>j===i?{...r,[k]:v}:r));
+  const add=()=>setRows([...rows,{...tpl}]);
+  const del=(i)=>{if(!window.confirm("この行を削除します。よろしいですか？"))return;setRows(rows.filter((_,j)=>j!==i));};
+  const thisNendo=nendoNow();
+  const cnt=rows.filter(r=>nendoOf(r.date)===thisNendo).length;
+  return <div style={{border:"1px solid #C8E6C9",borderRadius:6,marginBottom:14,overflow:"hidden"}}>
+    <div style={{background:c,color:"#fff",padding:"6px 14px",fontSize:12,fontWeight:"bold",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
+      <span>{title}　<span style={{fontSize:11,fontWeight:"normal",opacity:.9}}>今年度の記録 {cnt}件（{nendoLabel(thisNendo)}）</span></span>
+      <button className="screen-only" onClick={add} style={{background:"#fff",color:c,border:"none",borderRadius:4,padding:"3px 10px",fontSize:11,fontWeight:"bold",cursor:"pointer",whiteSpace:"nowrap"}}>＋ 記録を追加</button>
+    </div>
+    {note&&<div style={{background:"#FFF8E1",borderBottom:"1px solid #FFE082",padding:"6px 12px",fontSize:11,color:"#5D4037",lineHeight:1.7}}>{note}</div>}
+    <div style={{overflowX:"auto"}}>
+      <table style={{borderCollapse:"collapse",width:"100%",fontSize:11}}>
+        <thead><tr>
+          {cols.map(cl=><th key={cl.k} style={{...th,minWidth:cl.w||110}}>{cl.n}</th>)}
+          <th className="screen-only" style={{...th,width:34}}></th>
+        </tr></thead>
+        <tbody>
+          {rows.length===0&&<tr><td colSpan={cols.length+1} style={{...td,textAlign:"center",color:"#999",padding:14}}>まだ記録がありません。「＋ 記録を追加」から入力してください。</td></tr>}
+          {rows.map((r,i)=>(
+            <tr key={i}>
+              {cols.map(cl=>(
+                <td key={cl.k} style={{...td,verticalAlign:"top"}}>
+                  {cl.t==="ta"
+                    ? <React.Fragment>
+                        <textarea className="screen-only" value={r[cl.k]||""} onChange={e=>up(i,cl.k,e.target.value)} rows={cl.rows||2}
+                          style={{width:"100%",padding:"4px 6px",fontSize:11,border:"1px solid #C8E6C9",borderRadius:4,resize:"vertical",lineHeight:1.6,boxSizing:"border-box",fontFamily:"Meiryo,sans-serif"}}/>
+                        <span className="print-only" style={{whiteSpace:"pre-wrap"}}>{r[cl.k]||"　"}</span>
+                      </React.Fragment>
+                    : cl.t==="sel"
+                    ? <React.Fragment>
+                        <select className="screen-only" value={r[cl.k]||""} onChange={e=>up(i,cl.k,e.target.value)}
+                          style={{width:"100%",padding:"4px 6px",fontSize:11,border:"1px solid #C8E6C9",borderRadius:4,boxSizing:"border-box"}}>
+                          <option value="">（選択）</option>
+                          {(cl.o||[]).map(o=><option key={o} value={o}>{o}</option>)}
+                        </select>
+                        <span className="print-only">{r[cl.k]||"　"}</span>
+                      </React.Fragment>
+                    : <React.Fragment>
+                        <input className="screen-only" type={cl.t==="date"?"date":"text"} value={r[cl.k]||""} onChange={e=>up(i,cl.k,e.target.value)} placeholder={cl.ph||""}
+                          style={{width:"100%",padding:"4px 6px",fontSize:11,border:"1px solid #C8E6C9",borderRadius:4,boxSizing:"border-box"}}/>
+                        <span className="print-only">{(cl.t==="date"?ymdJp(r[cl.k]):r[cl.k])||"　"}</span>
+                      </React.Fragment>}
+                </td>
+              ))}
+              <td className="screen-only" style={{...td,textAlign:"center"}}>
+                <button onClick={()=>del(i)} title="この行を削除" style={{background:"#FFEBEE",color:"#C62828",border:"1px solid #EF9A9A",borderRadius:4,width:24,height:22,fontSize:11,cursor:"pointer",padding:0}}>🗑</button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </div>;
+}
+
+// 体制などの1行入力
+function KRField({label,value,onChange,type,ph,wide}){
+  return <div style={{marginBottom:8,flex:wide?"1 1 100%":"1 1 220px",minWidth:200}}>
+    <div style={{fontSize:11,fontWeight:"bold",color:G,marginBottom:3}}>{label}</div>
+    <input className="screen-only" type={type==="date"?"date":"text"} value={value||""} onChange={e=>onChange(e.target.value)} placeholder={ph||""}
+      style={{width:"100%",padding:"6px 8px",fontSize:12,border:"1px solid #C8E6C9",borderRadius:4,boxSizing:"border-box"}}/>
+    <div className="print-only" style={{fontSize:11}}>{(type==="date"?ymdJp(value):value)||"　"}</div>
+  </div>;
+}
+
+const KIROKU_NOTE="※ 実施の記録が残っていない場合、報酬の減算対象になることがあります（減算率は「様式第二・請求確認」タブの減算一覧をご確認ください）。この画面は記録を残すためのもので、請求の金額計算には影響しません。";
+
+function KirokuTab({kind,office,setOffice,names}){
+  const K=((office&&office.kiroku)||{})[kind]||{};
+  const upField=(k,v)=>setOffice(o=>({...o,kiroku:{...((o&&o.kiroku)||{}),[kind]:{...(((o&&o.kiroku)||{})[kind]||{}),[k]:v}}}));
+  const rows=(k)=>Array.isArray(K[k])?K[k]:[];
+  const setRows=(k)=>(arr)=>upField(k,arr);
+  const F=(label,k,type,ph,wide)=><KRField key={k} label={label} value={K[k]} onChange={v=>upField(k,v)} type={type} ph={ph} wide={wide}/>;
+  const box=(children)=><div style={{border:"1px solid #C8E6C9",borderRadius:6,marginBottom:14,overflow:"hidden"}}>
+      <div style={{background:G,color:"#fff",padding:"6px 14px",fontSize:12,fontWeight:"bold"}}>体制・担当</div>
+      <div style={{padding:10,display:"flex",flexWrap:"wrap",gap:10}}>{children}</div>
+    </div>;
+  const iinkaiCols=[{k:"date",n:"開催日",t:"date",w:120},{k:"place",n:"場所",w:100},{k:"member",n:"出席者",t:"ta",w:150},{k:"topic",n:"検討事項",t:"ta",w:220},{k:"kettei",n:"決定事項・周知方法",t:"ta",w:220}];
+  const kenshuCols=[{k:"date",n:"実施日",t:"date",w:120},{k:"title",n:"研修名",w:150},{k:"teacher",n:"講師・資料",w:120},{k:"member",n:"参加者",t:"ta",w:150},{k:"naiyou",n:"内容・振り返り",t:"ta",w:230}];
+
+  if(kind==="gyakutai") return <div style={{padding:14}}>
+    <Header title="🛡️ 虐待防止（委員会・研修の記録）"><PrtBtn/></Header>
+    <div style={{background:"#FFF8E1",border:"1px solid #FFE082",borderRadius:5,padding:"7px 12px",marginBottom:12,fontSize:11,color:"#5D4037",lineHeight:1.8}}>{KIROKU_NOTE}</div>
+    {box([F("虐待防止責任者","sekininsha",null,"例：齊藤 英樹"),F("虐待防止委員会の設置日","setchi","date"),F("通報・相談の窓口","madoguchi",null,"担当者名・電話番号"),F("指針・マニュアルの保管場所","hokan",null,"例：事務室 書庫A",true)])}
+    <KRList title="① 虐待防止委員会の記録" note="開催のたびに1行ずつ追加してください（議事録の要点で構いません）。" cols={iinkaiCols} rows={rows("iinkai")} setRows={setRows("iinkai")} tpl={{date:"",place:"",member:"",topic:"",kettei:""}}/>
+    <KRList title="② 虐待防止研修の記録" note="研修を実施したら1行ずつ追加してください。参加できなかった職員への伝達も記録しておくと安心です。" cols={kenshuCols} rows={rows("kenshu")} setRows={setRows("kenshu")} tpl={{date:"",title:"",teacher:"",member:"",naiyou:""}}/>
+    <KRList title="③ 通報・相談を受けた場合の記録" note="虐待の疑いを含め、通報・相談を受けた場合はここに記録します（該当がなければ空欄で構いません）。"
+      cols={[{k:"date",n:"受付日",t:"date",w:120},{k:"from",n:"通報・相談者",w:120},{k:"user",n:"対象利用者",t:"sel",o:names||[],w:130},{k:"naiyou",n:"内容",t:"ta",w:230},{k:"taiou",n:"対応・市町村への報告",t:"ta",w:230}]}
+      rows={rows("tsuuhou")} setRows={setRows("tsuuhou")} tpl={{date:"",from:"",user:"",naiyou:"",taiou:""}} color="#C62828"/>
+  </div>;
+
+  if(kind==="kousoku") return <div style={{padding:14}}>
+    <Header title="🤲 身体拘束等の適正化（記録・委員会・研修）"><PrtBtn/></Header>
+    <div style={{background:"#FFF8E1",border:"1px solid #FFE082",borderRadius:5,padding:"7px 12px",marginBottom:12,fontSize:11,color:"#5D4037",lineHeight:1.8}}>{KIROKU_NOTE}</div>
+    {box([F("身体拘束等適正化の担当者","tantou"),F("指針の策定日","shishin","date"),F("委員会の設置日","setchi","date"),F("指針・記録の保管場所","hokan",null,"例：事務室 書庫A",true)])}
+    <KRList title="① 身体拘束等を行った場合の記録" note="やむを得ず身体拘束等を行った場合は、その都度ここに記録します（切迫性・非代替性・一時性の3要件と、本人・ご家族への説明を必ず残してください）。該当がなければ空欄で構いません。"
+      cols={[{k:"date",n:"実施日",t:"date",w:120},{k:"user",n:"対象利用者",t:"sel",o:names||[],w:130},{k:"time",n:"時間帯",w:110,ph:"例：10:00〜10:20"},{k:"taiyou",n:"態様・部位",t:"ta",w:160},{k:"riyuu",n:"やむを得ない理由（3要件）",t:"ta",w:230},{k:"setsumei",n:"本人・家族への説明",t:"ta",w:180},{k:"kirokusha",n:"記録者",w:90}]}
+      rows={rows("kiroku")} setRows={setRows("kiroku")} tpl={{date:"",user:"",time:"",taiyou:"",riyuu:"",setsumei:"",kirokusha:""}} color="#C62828"/>
+    <KRList title="② 適正化委員会の記録" note="開催のたびに1行ずつ追加してください。" cols={iinkaiCols} rows={rows("iinkai")} setRows={setRows("iinkai")} tpl={{date:"",place:"",member:"",topic:"",kettei:""}}/>
+    <KRList title="③ 適正化研修の記録" note="研修を実施したら1行ずつ追加してください。" cols={kenshuCols} rows={rows("kenshu")} setRows={setRows("kenshu")} tpl={{date:"",title:"",teacher:"",member:"",naiyou:""}}/>
+  </div>;
+
+  if(kind==="bcp") return <div style={{padding:14}}>
+    <Header title="🌪️ 業務継続計画（BCP）・訓練の記録"><PrtBtn/></Header>
+    <div style={{background:"#FFF8E1",border:"1px solid #FFE082",borderRadius:5,padding:"7px 12px",marginBottom:12,fontSize:11,color:"#5D4037",lineHeight:1.8}}>{KIROKU_NOTE}</div>
+    {box([F("BCP（感染症）の策定日","kansenDate","date"),F("BCP（自然災害）の策定日","saigaiDate","date"),F("最終見直し日","minaoshi","date"),F("担当者","tantou"),F("計画書の保管場所","hokan",null,"例：事務室 書庫A"),F("非常時の連絡体制（責任者・連絡順）","renraku",null,"",true)])}
+    <KRList title="① 訓練・研修の記録（感染症・自然災害・避難）" note="訓練や研修を行ったら1行ずつ追加してください。想定と気づき（改善点）まで書いておくと、次回の計画見直しに使えます。"
+      cols={[{k:"date",n:"実施日",t:"date",w:120},{k:"type",n:"種別",t:"sel",o:["感染症","自然災害","避難訓練","消防訓練","研修","その他"],w:110},{k:"soutei",n:"想定・内容",t:"ta",w:230},{k:"member",n:"参加者",t:"ta",w:140},{k:"kizuki",n:"気づき・改善点",t:"ta",w:220}]}
+      rows={rows("kunren")} setRows={setRows("kunren")} tpl={{date:"",type:"",soutei:"",member:"",kizuki:""}}/>
+    <KRList title="② 計画の見直し記録" note="計画を見直したら1行ずつ追加してください。" 
+      cols={[{k:"date",n:"見直し日",t:"date",w:120},{k:"naiyou",n:"見直した内容",t:"ta",w:300},{k:"member",n:"検討した人",t:"ta",w:160}]}
+      rows={rows("minaoshiList")} setRows={setRows("minaoshiList")} tpl={{date:"",naiyou:"",member:""}}/>
+  </div>;
+
+  return <div style={{padding:14}}>
+    <Header title="📢 情報公表・自己評価の記録"><PrtBtn/></Header>
+    <div style={{background:"#FFF8E1",border:"1px solid #FFE082",borderRadius:5,padding:"7px 12px",marginBottom:12,fontSize:11,color:"#5D4037",lineHeight:1.8}}>{KIROKU_NOTE}</div>
+    {box([F("情報公表システムの担当者","tantou"),F("直近の報告日","saishin","date"),F("公表しているページ（URL）","url",null,"https://…",true)])}
+    <KRList title="① 障害福祉サービス等情報公表システムへの報告" note="報告したら1行ずつ追加してください。報告した控え（画面の印刷など）の保管場所も書いておくと安心です。"
+      cols={[{k:"date",n:"報告日",t:"date",w:120},{k:"nendo",n:"対象年度",w:100,ph:"例：令和8年度"},{k:"naiyou",n:"報告した内容",t:"ta",w:260},{k:"hokan",n:"控えの保管場所",w:150}]}
+      rows={rows("houkoku")} setRows={setRows("houkoku")} tpl={{date:"",nendo:"",naiyou:"",hokan:""}}/>
+    <KRList title="② 自己評価・公表の記録（A型はスコアの自己評価を含む）" note="自己評価を行い公表したら1行ずつ追加してください。公表方法（ホームページ・事業所内掲示など）も記録します。"
+      cols={[{k:"date",n:"実施日",t:"date",w:120},{k:"naiyou",n:"評価の内容・結果",t:"ta",w:260},{k:"kouhyouDate",n:"公表日",t:"date",w:120},{k:"houhou",n:"公表方法・URL",t:"ta",w:200}]}
+      rows={rows("jikoHyouka")} setRows={setRows("jikoHyouka")} tpl={{date:"",naiyou:"",kouhyouDate:"",houhou:""}}/>
+  </div>;
+}
+
 function MonthNav({ym,setYm}){
   const mv=(d)=>{const [y,m]=ym.split("-").map(Number);const dt=new Date(y,m-1+d,1);setYm(monthKey(dt));};
   return <div style={{display:"flex",alignItems:"center",gap:6}}>
@@ -12941,6 +13080,7 @@ function App({facility,session,onLogout}){
   const [remoteUpdate,setRemoteUpdate]=useState(""); // v7.51: 開いている利用者に他職員の更新が届いたときの通知
   const [schedNoticeOff,setSchedNoticeOff]=useState(false); // v7.91: 更新時期のお知らせ帯を閉じたかどうか
   const [subFold,setSubFold]=useState(false); // v7.92: 各タブの左の縦メニューをたたむ（画面を広く使う）
+  const [kirokuSub,setKirokuSub]=useState(0); // v7.95: 事業所の記録タブの左メニュー
   const [cloudLoaded,setCloudLoaded]=useState(false);
   const [staffList,setStaffList]=useState([]);
   const [staffOpen,setStaffOpen]=useState(false);
@@ -13288,7 +13428,7 @@ function App({facility,session,onLogout}){
   const upOff=(k,v)=>setOffice(o=>({...o,[k]:v}));
   const clearOffice=()=>{
     if(!window.confirm("\u4E8B\u696D\u6240\u8A2D\u5B9A\uFF08\u4E8B\u696D\u6240\u540D\u30FB\u30B5\u30FC\u30D3\u30B9\u7BA1\u7406\u8CAC\u4EFB\u8005\u7B49\uFF09\u3092\u7A7A\u306B\u3057\u307E\u3059\u3002\n\u5229\u7528\u8005\u30C7\u30FC\u30BF\u306F\u6D88\u3048\u307E\u305B\u3093\u3002\u3088\u308D\u3057\u3044\u3067\u3059\u304B\uFF1F"))return;
-    setOffice({name:"",svc:"\u5C31\u52B4\u7D99\u7D9A\u652F\u63F4B\u578B",kanri:"",place:"",shidoin:""});
+    setOffice(o=>({name:"",svc:"\u5C31\u52B4\u7D99\u7D9A\u652F\u63F4B\u578B",kanri:"",place:"",shidoin:"",kiroku:(o&&o.kiroku)||{}})); // v7.95: 事業所の記録は消さない
   };
   const resetAll=()=>{
     if(!window.confirm("\u26A0\uFE0F \u65B0\u3057\u3044\u4E8B\u696D\u6240\u3068\u3057\u3066\u6700\u521D\u304B\u3089\u59CB\u3081\u307E\u3059\u3002\n\n\u3059\u3079\u3066\u306E\u5229\u7528\u8005\u30C7\u30FC\u30BF\u30FB\u540D\u7C3F\u30FB\u5165\u529B\u5185\u5BB9\u3092\u524A\u9664\u3057\u307E\u3059\u3002\n\u3053\u306E\u64CD\u4F5C\u306F\u5143\u306B\u623B\u305B\u307E\u305B\u3093\u3002\n\n\uFF08\u5FC5\u8981\u306A\u3089\u5148\u306B\u30AD\u30E3\u30F3\u30BB\u30EB\u3057\u300C💾 \u5168\u30C7\u30FC\u30BF\u4FDD\u5B58\u300D\u3067\n\u3000\u63A7\u3048\u3092\u53D6\u3063\u3066\u304F\u3060\u3055\u3044\uFF09\n\n\u7D9A\u884C\u3057\u307E\u3059\u304B\uFF1F"))return;
@@ -13505,7 +13645,7 @@ function App({facility,session,onLogout}){
     setTab(1); setPlanSub(1); // AI反映後は個別支援計画書（左メニューの計画書）を開く
   };
 
-    const TABS=[["👤","\u5229\u7528\u8005\u30DE\u30B9\u30BF"],["📋","\u500B\u5225\u652F\u63F4\u8A08\u753B\u66F8"],["📊","\u5B9F\u65BD\u72B6\u6CC1"],["💬","\u9762\u8AC7\u8A18\u9332"],["📝","\u652F\u63F4\u8A18\u9332"],["🧩","\u969C\u5BB3\u7279\u6027"],["🔍","\u30A2\u30BB\u30B9\u30E1\u30F3\u30C8"],["🤝","\u30B1\u30FC\u30B9\u4F1A\u8B70"],["📄","\u66F8\u985E\u4F5C\u6210"],["📅","B型\u5B9F\u7E3E\u8A18\u9332"],["🧮","\u8ACB\u6C42\u96C6\u8A08"],["💰","B型\u5DE5\u8CC3\u8A08\u7B97"],["📃","\u5DE5\u8CC3\u660E\u7D30"],["🧾","\u8ACB\u6C42\u66F8\u30FB\u9818\u53CE\u8A3C"],["📨","\u7D66\u4ED8\u8CBB\u901A\u77E5"],["🏠","\u5728\u5B85\u8A18\u9332"],["📆","利用日集計"],["📊","出席状況"],["\u26A0\uFE0F","\u304A\u5BA2\u69D8\u82E6\u60C5\u53D7\u4ED8"],["📋","\u69D8\u5F0F\u7B2C\u4E8C\u30FB\u8ACB\u6C42\u78BA\u8A8D"],["🅰️","A型"],["🅰️","A型様式第二・請求確認"],["🚶","就労移行"]];
+    const TABS=[["👤","\u5229\u7528\u8005\u30DE\u30B9\u30BF"],["📋","\u500B\u5225\u652F\u63F4\u8A08\u753B\u66F8"],["📊","\u5B9F\u65BD\u72B6\u6CC1"],["💬","\u9762\u8AC7\u8A18\u9332"],["📝","\u652F\u63F4\u8A18\u9332"],["🧩","\u969C\u5BB3\u7279\u6027"],["🔍","\u30A2\u30BB\u30B9\u30E1\u30F3\u30C8"],["🤝","\u30B1\u30FC\u30B9\u4F1A\u8B70"],["📄","\u66F8\u985E\u4F5C\u6210"],["📅","B型\u5B9F\u7E3E\u8A18\u9332"],["🧮","\u8ACB\u6C42\u96C6\u8A08"],["💰","B型\u5DE5\u8CC3\u8A08\u7B97"],["📃","\u5DE5\u8CC3\u660E\u7D30"],["🧾","\u8ACB\u6C42\u66F8\u30FB\u9818\u53CE\u8A3C"],["📨","\u7D66\u4ED8\u8CBB\u901A\u77E5"],["🏠","\u5728\u5B85\u8A18\u9332"],["📆","利用日集計"],["📊","出席状況"],["\u26A0\uFE0F","\u304A\u5BA2\u69D8\u82E6\u60C5\u53D7\u4ED8"],["📋","\u69D8\u5F0F\u7B2C\u4E8C\u30FB\u8ACB\u6C42\u78BA\u8A8D"],["🅰️","A型"],["🅰️","A型様式第二・請求確認"],["🚶","就労移行"],["🏢","事業所の記録"]];
   const tabSvc = tab===20?"A":tab===22?"I":(tab===9||tab===11)?"B":null; // 区分タブ表示中は名簿もその区分に連動
   const filtered=names.filter(n=>n.replace(/\s/g,"").includes(q.replace(/\s/g,""))&&(editMode||!tabSvc||getSvc(n)===tabSvc));
 
@@ -13764,10 +13904,10 @@ function App({facility,session,onLogout}){
       </div>}
       {staffOpen&&<StaffManager staffList={staffList} setStaffList={setStaffList} me={session} onClose={()=>setStaffOpen(false)}/>}
       <div className="np" style={{display:"flex",background:"#fff",borderBottom:"2px solid #C8E6C9",flexShrink:0,overflowX:"auto"}}>
-        {[1,9,11,20,22,18].map(i=>{const [icon,label]=TABS[i];return <button key={i} onClick={()=>setTab(i)} style={{padding:"9px 10px",border:"none",cursor:"pointer",fontSize:11,fontWeight:tab===i?"bold":"normal",background:"transparent",color:tab===i?G:"#888",borderBottom:tab===i?"3px solid #388E3C":"3px solid transparent",whiteSpace:"nowrap"}}>{icon} {label}</button>;})}
+        {[1,9,11,20,22,23,18].map(i=>{const [icon,label]=TABS[i];return <button key={i} onClick={()=>setTab(i)} style={{padding:"9px 10px",border:"none",cursor:"pointer",fontSize:11,fontWeight:tab===i?"bold":"normal",background:"transparent",color:tab===i?G:"#888",borderBottom:tab===i?"3px solid #388E3C":"3px solid transparent",whiteSpace:"nowrap"}}>{icon} {label}</button>;})}
       </div>
       <div style={{flex:1,overflowY:"auto"}}>
-        {!sel&&tab!==9&&tab!==10&&tab!==18&&tab!==19&&<div style={{textAlign:"center",paddingTop:50,color:"#888",fontSize:14}}>
+        {!sel&&tab!==9&&tab!==10&&tab!==18&&tab!==19&&tab!==23&&<div style={{textAlign:"center",paddingTop:50,color:"#888",fontSize:14}}>
           {names.length===0?<div style={{display:"inline-block",textAlign:"left",background:"#fff",border:"1px solid #C8E6C9",borderRadius:8,padding:"18px 24px",lineHeight:2.1,fontSize:13}}>
             <div style={{fontWeight:"bold",color:G,fontSize:15,marginBottom:6}}>🌱 はじめての設定（3ステップ）</div>
             ① 左下の <b style={{color:"#5D4037"}}>🏢 事業所設定</b> で事業所名・サービス管理責任者を記入<br/>
@@ -13848,6 +13988,22 @@ function App({facility,session,onLogout}){
         {tab===15&&<ZaittakuTab sel={sel} names={names} allData={allData} setAllData={setAllData} att={att} setAtt={setAtt} office={office}/>}
         {tab===16&&<OutsideTab names={names} allData={allData} office={office}/>}
         {tab===17&&<KaikinTab names={names} allData={allData} office={office}/>}
+        {tab===23&&<div style={{display:"flex",alignItems:"stretch"}}>
+          {/* 左側の縦メニュー：事業所ごとに残す記録（利用者を選ばずに使えます） */}
+          <div className="np" style={{width:subFold?24:150,flexShrink:0,display:"flex",flexDirection:"column",gap:4,padding:subFold?"8px 2px":"14px 8px",background:"#F1F8E9",borderRight:"2px solid #C8E6C9"}}>
+            <button onClick={()=>setSubFold(!subFold)} title={subFold?"メニューを開く":"メニューをたたむ"} style={{background:"#fff",color:"#1B5E20",border:"1px solid #C8E6C9",borderRadius:5,cursor:"pointer",fontSize:9.5,fontWeight:"bold",padding:subFold?"6px 0":"4px 0",width:"100%",whiteSpace:"nowrap",overflow:"hidden",marginBottom:2,...(subFold?{writingMode:"vertical-rl",letterSpacing:1,height:118,alignSelf:"center",position:"sticky",top:8,padding:"8px 0"}:{flexShrink:0})}}>{subFold?"\u25B6 \u30E1\u30CB\u30E5\u30FC":"\u25C0 \u305F\u305F\u3080"}</button>
+            {!subFold&&<div style={{fontSize:10,fontWeight:"bold",color:"#888",padding:"0 4px 2px"}}>🏢 事業所ごとの記録</div>}
+            {!subFold&&[[0,"🛡️","虐待防止"],[1,"🤲","身体拘束等の適正化"],[2,"🌪️","BCP・訓練"],[3,"📢","情報公表・自己評価"]].map(([i,ic,l])=>
+              <button key={i} onClick={()=>setKirokuSub(i)} style={{textAlign:"left",padding:"9px 10px",border:"none",borderRadius:6,cursor:"pointer",fontSize:12,fontWeight:kirokuSub===i?"bold":"normal",background:kirokuSub===i?"#388E3C":"#fff",color:kirokuSub===i?"#fff":"#1B5E20",borderLeft:kirokuSub===i?"4px solid #1B5E20":"4px solid #C8E6C9",whiteSpace:"normal",lineHeight:1.45}}>{ic} {l}</button>)}
+          </div>
+          <div style={{flex:1,minWidth:0}}>
+            <div className="np" style={{background:"#F1F8E9",borderBottom:"1px solid #C8E6C9",padding:"6px 14px",fontSize:11.5,color:"#1B5E20"}}>🏢 ここは<b>事業所ごと</b>の記録です（利用者を選ばずに使えます）。入力内容は自動保存され、クラウドにも同期されます。</div>
+            {kirokuSub===0&&<KirokuTab kind="gyakutai" office={office} setOffice={setOffice} names={names}/>}
+            {kirokuSub===1&&<KirokuTab kind="kousoku" office={office} setOffice={setOffice} names={names}/>}
+            {kirokuSub===2&&<KirokuTab kind="bcp" office={office} setOffice={setOffice} names={names}/>}
+            {kirokuSub===3&&<KirokuTab kind="kouhyou" office={office} setOffice={setOffice} names={names}/>}
+          </div>
+        </div>}
         {tab===18&&<CustomerComplaintTab/>}
                 {tab===20&&(()=>{const aNames=names.filter(x=>((allData[x]||{}).svcType==="A"));return <div style={{display:"flex",alignItems:"stretch"}}>
           {/* A型（就労継続支援A型）：左の縦メニューから各帳票へ。集計対象はA型の利用者のみ */}
