@@ -8320,7 +8320,7 @@ function schedStatus(u,today){
     if(!d)break;
     if(!g.done[d]){
       const diff=ymdDiff(today,d);
-      return {start:g.start,next:{no:i,date:d,ym:d.slice(0,7)},diff,state:diff<0?"over":(diff<=SCHED_SOON?"soon":"ok"),done:g.done};
+      return {start:g.start,next:{no:i,date:d,ym:d.slice(0,7)},diff,state:diff<=0?"over":(diff<=SCHED_SOON?"soon":"ok"),done:g.done};
     }
   }
   return {start:g.start,next:null,diff:null,state:"done",done:g.done};
@@ -8383,7 +8383,7 @@ function SchedTab({names,allData,setAllData,onPick,sel}){
   const dstate=(r,x)=>{
     if(r.done[x.date])return "done";
     const df=ymdDiff(today,x.date);
-    return df<0?"over":(df<=SCHED_SOON?"soon":"ok");
+    return df<=0?"over":(df<=SCHED_SOON?"soon":"ok");
   };
   const svcBgOf=(s)=>s==="A"?"#FFB74D":s==="就"?"#81D4FA":"#A5D6A7";
   const svcFgOf=(s)=>s==="A"?"#4E342E":s==="就"?"#01579B":"#1B5E20";
