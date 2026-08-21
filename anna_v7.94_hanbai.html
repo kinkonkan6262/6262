@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>Anna AI支援記録 AI版 v7.93 販売版</title>
+<title>Anna AI支援記録 AI版 v7.94 販売版</title>
 <script>/* encoding-japanese v2.1.0 を直接埋め込み（CDN接続不要化 v7.53） */
 /*!
  * encoding-japanese v2.1.0 - Convert and detect character encoding in JavaScript
@@ -188,7 +188,7 @@ function kkTrialRemainDays(){
 // ===== 更新お知らせ v7.60 =====
 // GitHub上の app_version.json の latest が自分より新しければ、右下に案内を表示する。
 // 表示のみ（利用は止めない）。通信できない場合は何もしない。
-var KK_APP_VERSION = "7.93";
+var KK_APP_VERSION = "7.94";
 var KK_VERSION_URLS = [
   "https://raw.githubusercontent.com/kinkonkan6262/6262/main/app_version.json",
   "https://kinkonkan6262.github.io/6262/app_version.json"
@@ -8268,11 +8268,13 @@ const SCHED_STEP=6;    // 更新の間隔（月）
 const SCHED_SOON=30;   // 何日前から「まもなく更新」と知らせるか
 const SCHED_COLS=18;   // 全体表に並べる月数
 const SCHED_MAX=40;    // 自動計算する更新回数の上限（20年分）
+const SCHED_JK_SOON=60; // 受給者証：満了の何日前から知らせるか（更新申請の目安）
 const SCHED_COLOR={over:"#C62828",soon:"#EF6C00",ok:"#1565C0",done:"#2E7D32"};
 
 function schedGet(u){
   const s=(u&&u.sched&&typeof u.sched==="object")?u.sched:{};
-  return {start:s.start||"",done:(s.done&&typeof s.done==="object")?s.done:{}};
+  // jFrom／jTo＝受給者証の支給決定期間（支給開始日・支給満了日）
+  return {start:s.start||"",done:(s.done&&typeof s.done==="object")?s.done:{},jFrom:s.jFrom||"",jTo:s.jTo||""};
 }
 function ymdOf(dt){return dt.getFullYear()+"-"+String(dt.getMonth()+1).padStart(2,"0")+"-"+String(dt.getDate()).padStart(2,"0");}
 function todayYmd(){return ymdOf(new Date());}
@@ -8325,6 +8327,30 @@ function schedStatus(u,today){
   }
   return {start:g.start,next:null,diff:null,state:"done",done:g.done};
 }
+// 受給者証の支給決定期間（満了日まで何日か）
+//   over…満了日を過ぎている／soon…まもなく満了（60日以内）／ok…まだ先／none…満了日が未入力
+function schedJukyu(u,today){
+  const g=schedGet(u);
+  if(!g.jTo) return {from:g.jFrom||"",to:"",diff:null,state:"none"};
+  const diff=ymdDiff(today,g.jTo);
+  return {from:g.jFrom||"",to:g.jTo,diff,state:diff<0?"over":(diff<=SCHED_JK_SOON?"soon":"ok")};
+}
+// 氏名の横に出す受給者証の警告メッセージ
+function jukyuWarnText(j){
+  if(!j||j.state==="none"||j.state==="ok")return "";
+  if(j.state==="over")return "📄 受給者証の期限切れ："+ymdJp(j.to)+"（"+Math.abs(j.diff)+"日経過）";
+  if(j.diff===0)return "📄 受給者証は本日が満了日です："+ymdJp(j.to);
+  return "📄 受給者証 あと"+j.diff+"日で満了："+ymdJp(j.to)+"（更新申請の準備を）";
+}
+// 名簿全員ぶんの受給者証の警告
+function jukyuAlertMap(names,allData,today){
+  const m={};
+  (names||[]).forEach(n=>{
+    const j=schedJukyu((allData||{})[n]||{},today);
+    if(j.state==="over"||j.state==="soon")m[n]=j;
+  });
+  return m;
+}
 // 名簿全員ぶんの警告（氏名の横に出すため）
 function schedAlertMap(names,allData,today){
   const m={};
@@ -8355,6 +8381,8 @@ function SchedTab({names,allData,setAllData,onPick,sel}){
 
   // 利用開始日の入力／更新の「済」チェック（利用者データにそのまま保存され、クラウドにも同期されます）
   const setStart=(name,v)=>setAllData(prev=>{const u=prev[name]||{};const g=schedGet(u);return {...prev,[name]:{...u,sched:{...g,start:v}}};});
+  // 受給者証の支給開始日・支給満了日
+  const setJk=(name,k,v)=>setAllData(prev=>{const u=prev[name]||{};const g=schedGet(u);return {...prev,[name]:{...u,sched:{...g,[k]:v}}};});
   const toggleDone=(name,date)=>setAllData(prev=>{
     const u=prev[name]||{};const g=schedGet(u);const done={...g.done};
     if(done[date])delete done[date];else done[date]=todayYmd();
@@ -8371,13 +8399,17 @@ function SchedTab({names,allData,setAllData,onPick,sel}){
     const list=schedListUntil(st.start,lastYm);
     const byYm={},byDate={};
     list.forEach(x=>{(byYm[x.ym]=byYm[x.ym]||[]).push(x);byDate[x.date]=x;});
-    return {name:n,svc:u.svcType==="A"?"A":u.svcType==="I"?"就":"B",...st,byYm,byDate};
+    return {name:n,svc:u.svcType==="A"?"A":u.svcType==="I"?"就":"B",...st,byYm,byDate,jk:schedJukyu(u,today)};
   });
   const alerts=rows.filter(r=>r.state==="over"||r.state==="soon")
     .sort((a,b)=>a.next.date<b.next.date?-1:(a.next.date>b.next.date?1:0));
   const overCount=rows.filter(r=>r.state==="over").length;
   const noStart=rows.filter(r=>r.state==="none").map(r=>r.name);
-  const shown=onlyWarn?rows.filter(r=>r.state==="over"||r.state==="soon"):rows;
+  // 受給者証の期限が近い／切れている利用者
+  const jkAlerts=rows.filter(r=>r.jk.state==="over"||r.jk.state==="soon")
+    .sort((a,b)=>a.jk.to<b.jk.to?-1:(a.jk.to>b.jk.to?1:0));
+  const jkOverCount=rows.filter(r=>r.jk.state==="over").length;
+  const shown=onlyWarn?rows.filter(r=>r.state==="over"||r.state==="soon"||r.jk.state==="over"||r.jk.state==="soon"):rows;
 
   // 予定の1件ごとの状態（済／期限超過／まもなく／予定）
   const dstate=(r,x)=>{
@@ -8400,7 +8432,7 @@ function SchedTab({names,allData,setAllData,onPick,sel}){
   };
 
   return <div style={{padding:14}}>
-    <Header title={"🗓️ 予定表（個別支援計画の更新）― 利用開始から半年ごと"}>
+    <Header title={"🗓️ 予定表（個別支援計画の更新・受給者証の期限）"}>
       <PrtBtn/>
     </Header>
 
@@ -8415,6 +8447,20 @@ function SchedTab({names,allData,setAllData,onPick,sel}){
           <span style={{color:SCHED_COLOR[a.state],fontWeight:"bold"}}>{schedWarnText(a,today)}</span>
           <span style={{color:"#666"}}>（利用開始 {ymdJp(a.start)}／第{a.next.no}回）</span>
           <button className="np" onClick={()=>toggleDone(a.name,a.next.date)} style={{background:"#388E3C",color:"#fff",border:"none",borderRadius:4,padding:"2px 10px",fontSize:11,fontWeight:"bold",cursor:"pointer",whiteSpace:"nowrap"}}>✅ 更新済みにする</button>
+        </div>
+      ))}
+    </div>
+
+    {/* 受給者証の期限のお知らせ */}
+    <div style={{background:jkAlerts.length?"#FFF3E0":"#E8F5E9",border:"1px solid "+(jkAlerts.length?"#FFCC80":"#A5D6A7"),borderRadius:6,padding:"8px 12px",marginBottom:10}}>
+      <div style={{fontSize:12,fontWeight:"bold",color:jkAlerts.length?"#E65100":"#1B5E20",marginBottom:jkAlerts.length?6:0}}>
+        {jkAlerts.length?"📄 受給者証の期限のお知らせ（期限切れ "+jkOverCount+"名／まもなく満了 "+(jkAlerts.length-jkOverCount)+"名）":"✅ 受給者証の期限が近い利用者はいません"}
+      </div>
+      {jkAlerts.map(a=>(
+        <div key={a.name} style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",fontSize:11.5,padding:"3px 0",borderTop:"1px dotted #FFCC80"}}>
+          <button className="np" onClick={()=>onPick&&onPick(a.name)} style={{background:"#fff",border:"1px solid "+SCHED_COLOR[a.jk.state],color:SCHED_COLOR[a.jk.state],borderRadius:4,padding:"2px 8px",fontSize:11.5,fontWeight:"bold",cursor:"pointer",whiteSpace:"nowrap"}}>{a.name} さん</button>
+          <span style={{color:SCHED_COLOR[a.jk.state],fontWeight:"bold"}}>{jukyuWarnText(a.jk)}</span>
+          <span style={{color:"#666"}}>（支給決定期間 {ymdJp(a.jk.from)||"（開始日未入力）"} 〜 {ymdJp(a.jk.to)}）</span>
         </div>
       ))}
     </div>
@@ -8437,7 +8483,7 @@ function SchedTab({names,allData,setAllData,onPick,sel}){
         : <MonthNav ym={ym} setYm={setYm}/>}
       <label style={{fontSize:11,display:"flex",alignItems:"center",gap:4,cursor:"pointer"}}>
         <input type="checkbox" checked={onlyWarn} onChange={e=>setOnlyWarn(e.target.checked)} style={{accentColor:"#388E3C"}}/>
-        更新時期の利用者だけ表示
+        更新時期・期限切れの利用者だけ表示
       </label>
       <span style={{fontSize:10.5,color:"#666"}}>
         <b style={{color:SCHED_COLOR.over}}>更</b>＝更新時期を過ぎている　<b style={{color:SCHED_COLOR.soon}}>更</b>＝まもなく（30日以内）　<b style={{color:SCHED_COLOR.ok}}>更</b>＝先の予定　<b style={{color:SCHED_COLOR.done}}>✅</b>＝更新済み（クリックで切替）
@@ -8459,6 +8505,8 @@ function SchedTab({names,allData,setAllData,onPick,sel}){
             <th style={{...th,minWidth:120}}>利用開始日</th>
             <th style={{...th,minWidth:58}}>経過</th>
             <th style={{...th,minWidth:150}}>次回の更新</th>
+            <th style={{...th,minWidth:118}}>支給開始日</th>
+            <th style={{...th,minWidth:126}}>支給満了日</th>
             {months.map(mk=>(
               <th key={mk} style={{...th,minWidth:40,background:mk===thisYm?"#FFF59D":th.background}}>
                 {Number(mk.slice(5))}月<div style={{fontSize:8.5,color:"#666",fontWeight:"normal"}}>{mk.slice(0,4)}</div>
@@ -8483,10 +8531,22 @@ function SchedTab({names,allData,setAllData,onPick,sel}){
               <td style={{...td,whiteSpace:"nowrap",color:r.next?SCHED_COLOR[r.state]:"#999",fontWeight:r.state==="over"?"bold":"normal"}}>
                 {r.state==="none"?"利用開始日を入力":r.next?("第"+r.next.no+"回　"+ymdJp(r.next.date)+"　"+(r.diff<0?"（"+Math.abs(r.diff)+"日経過）":r.diff===0?"（本日）":"（あと"+r.diff+"日）")):"すべて更新済み"}
               </td>
+              <td style={{...td,textAlign:"center"}}>
+                <input type="date" value={r.jk.from} onChange={e=>setJk(r.name,"jFrom",e.target.value)} className="np"
+                  style={{width:112,padding:"2px 4px",fontSize:11,border:"1px solid #C8E6C9",borderRadius:4}}/>
+                <span className="print-only" style={{fontSize:10}}>{ymdJp(r.jk.from)}</span>
+              </td>
+              <td style={{...td,textAlign:"center",background:r.jk.state==="over"?"#FFEBEE":r.jk.state==="soon"?"#FFF3E0":undefined}}>
+                <input type="date" value={r.jk.to} onChange={e=>setJk(r.name,"jTo",e.target.value)} className="np"
+                  style={{width:112,padding:"2px 4px",fontSize:11,border:"1px solid "+(r.jk.state==="over"?"#EF9A9A":r.jk.state==="soon"?"#FFCC80":"#C8E6C9"),borderRadius:4}}/>
+                <span className="print-only" style={{fontSize:10}}>{ymdJp(r.jk.to)}</span>
+                {r.jk.state!=="none"&&r.jk.state!=="ok"&&<div style={{fontSize:9,fontWeight:"bold",color:SCHED_COLOR[r.jk.state]}}>{r.jk.state==="over"?"期限切れ "+Math.abs(r.jk.diff)+"日":(r.jk.diff===0?"本日が満了日":"あと"+r.jk.diff+"日")}</div>}
+              </td>
               {months.map(mk=>(
                 <td key={mk} style={{...cellBase,background:mk===thisYm?"#FFFDE7":undefined}}>
                   {(r.byYm[mk]||[]).map(x=>markBtn(r,x,Number(x.date.slice(8))+"日"))}
                   {r.start&&r.start.slice(0,7)===mk&&<div style={{fontSize:8.5,color:"#2E7D32"}}>利用開始</div>}
+                  {r.jk.to&&r.jk.to.slice(0,7)===mk&&<div title={"受給者証の支給満了日　"+ymdJp(r.jk.to)} style={{fontSize:9,fontWeight:"bold",color:SCHED_COLOR[r.jk.state==="none"?"ok":r.jk.state]}}>証<span style={{fontSize:8,fontWeight:"normal"}}>{Number(r.jk.to.slice(8))}日</span></div>}
                 </td>
               ))}
             </tr>
@@ -8507,6 +8567,7 @@ function SchedTab({names,allData,setAllData,onPick,sel}){
             <tr>
               <th style={{...th,minWidth:120,position:"sticky",left:0,zIndex:2}} rowSpan={2}>利用者名</th>
               <th style={{...th,minWidth:120}} rowSpan={2}>利用開始日</th>
+              <th style={{...th,minWidth:120}} rowSpan={2}>支給満了日</th>
               {days.map(d=><th key={d} style={{...th,minWidth:24,color:wdOf(d)===0?"#C62828":wdOf(d)===6?"#1565C0":"#333",background:dateOf(d)===today?"#FFF59D":th.background}}>{d}</th>)}
             </tr>
             <tr>
@@ -8521,11 +8582,13 @@ function SchedTab({names,allData,setAllData,onPick,sel}){
                   {(r.state==="over"||r.state==="soon")&&<div style={{fontSize:9,fontWeight:"bold",color:SCHED_COLOR[r.state]}}>{r.state==="over"?"⚠️ 更新時期":"⏳ まもなく"}</div>}
                 </td>
                 <td style={{...td,textAlign:"center",whiteSpace:"nowrap"}}>{ymdJp(r.start)||"—"}</td>
+                <td style={{...td,textAlign:"center",whiteSpace:"nowrap",color:r.jk.state==="over"||r.jk.state==="soon"?SCHED_COLOR[r.jk.state]:"#444",fontWeight:r.jk.state==="over"?"bold":"normal"}}>{ymdJp(r.jk.to)||"—"}</td>
                 {days.map(d=>{
                   const dt=dateOf(d);
                   const x=r.byDate[dt];
                   return <td key={d} style={{...cellBase,minWidth:24,background:dt===today?"#FFFDE7":(wdOf(d)===0?"#FFF5F5":wdOf(d)===6?"#F3F8FF":undefined)}}>
                     {x?markBtn(r,x,"第"+x.no+"回"):(r.start===dt?<span style={{fontSize:9,color:"#2E7D32",fontWeight:"bold"}}>開始</span>:null)}
+                    {r.jk.to===dt&&<div title={"受給者証の支給満了日"} style={{fontSize:9,fontWeight:"bold",color:SCHED_COLOR[r.jk.state==="none"?"ok":r.jk.state]}}>証</div>}
                   </td>;
                 })}
               </tr>
@@ -8538,7 +8601,8 @@ function SchedTab({names,allData,setAllData,onPick,sel}){
     <div style={{background:"#F1F8E9",border:"1px solid #C8E6C9",borderRadius:5,padding:"8px 12px",marginTop:10,fontSize:11,color:"#33691E",lineHeight:1.8}}>
       📌 <b>使い方</b>　①「利用開始日」を入れると、半年（{SCHED_STEP}か月）ごとの更新予定が自動で並びます。<br/>
       ②「更」を押すと更新済み（✅）になり、次の半年後が次回の更新予定になります。<br/>
-      ③ 更新時期が来た利用者は、左の名簿の氏名の横と画面の上に <b style={{color:"#C62828"}}>⚠️ 更新時期</b> の警告が出ます。
+      ③ 更新時期が来た利用者は、左の名簿の氏名の横と画面の上に <b style={{color:"#C62828"}}>⚠️ 更新時期</b> の警告が出ます。<br/>
+      ④「支給満了日」（受給者証）を入れると、満了の{SCHED_JK_SOON}日前から <b style={{color:"#E65100"}}>📄 受給者証</b> の警告が出ます。表には「証」印が付きます。
     </div>
   </div>;
 }
@@ -13552,6 +13616,10 @@ function App({facility,session,onLogout}){
   const schedToday=todayYmd();
   const schedWarn=schedAlertMap(names,allData,schedToday);
   const schedOverNames=Object.keys(schedWarn).filter(n=>schedWarn[n].state==="over");
+  // v7.94: 受給者証（支給決定期間）の期限も同じように警告する
+  const jukyuWarn=jukyuAlertMap(names,allData,schedToday);
+  const jukyuOverNames=Object.keys(jukyuWarn).filter(n=>jukyuWarn[n].state==="over");
+  const alertNames=Array.from(new Set(schedOverNames.concat(jukyuOverNames)));
 
   return <div style={{display:"flex",height:"100%",overflow:"hidden"}}>
     <div className="np" style={{width:sideFold?26:(editMode?230:155),background:G,display:"flex",flexDirection:"column",flexShrink:0,transition:"width 0.2s"}}>
@@ -13609,7 +13677,7 @@ function App({facility,session,onLogout}){
         {filtered.map((n,i)=>editMode?(
           <div key={n} style={{display:"flex",alignItems:"center",gap:2,padding:"3px 6px",borderBottom:"1px solid rgba(255,255,255,0.07)"}}>
             <button onClick={()=>toggleSvc(n)} title="押すとB型→A型→就労移行（就）の順に切替" style={{background:svcBg(n),color:svcFg(n),border:"none",borderRadius:3,width:18,height:18,fontSize:9,fontWeight:"bold",cursor:"pointer",padding:0,flexShrink:0}}>{svcJp(n)}</button>
-            <span style={{flex:1,fontSize:11,color:"#fff",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{n}{hasData(n)&&<span style={{fontSize:9,marginLeft:3,color:"#A5D6A7"}}>●</span>}{schedWarn[n]&&<span title={schedWarnText(schedWarn[n],schedToday)} style={{fontSize:8.5,marginLeft:3,background:schedWarn[n].state==="over"?"#C62828":"#EF6C00",color:"#fff",borderRadius:3,padding:"1px 4px",fontWeight:"bold",whiteSpace:"nowrap"}}>{schedWarn[n].state==="over"?"⚠️更新":"⏳まもなく"}</span>}</span>
+            <span style={{flex:1,fontSize:11,color:"#fff",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{n}{hasData(n)&&<span style={{fontSize:9,marginLeft:3,color:"#A5D6A7"}}>●</span>}{schedWarn[n]&&<span title={schedWarnText(schedWarn[n],schedToday)} style={{fontSize:8.5,marginLeft:3,background:schedWarn[n].state==="over"?"#C62828":"#EF6C00",color:"#fff",borderRadius:3,padding:"1px 4px",fontWeight:"bold",whiteSpace:"nowrap"}}>{schedWarn[n].state==="over"?"⚠️更新":"⏳まもなく"}</span>}{jukyuWarn[n]&&<span title={jukyuWarnText(jukyuWarn[n])} style={{fontSize:8.5,marginLeft:3,background:jukyuWarn[n].state==="over"?"#AD1457":"#00838F",color:"#fff",borderRadius:3,padding:"1px 4px",fontWeight:"bold",whiteSpace:"nowrap"}}>📄証</span>}</span>
             <button onClick={()=>moveUser(n,-1)} title="上へ" style={{background:"rgba(255,255,255,0.12)",color:"#fff",border:"none",borderRadius:3,width:20,height:20,fontSize:10,cursor:"pointer",padding:0}}>↑</button>
             <button onClick={()=>moveUser(n,1)} title="下へ" style={{background:"rgba(255,255,255,0.12)",color:"#fff",border:"none",borderRadius:3,width:20,height:20,fontSize:10,cursor:"pointer",padding:0}}>↓</button>
             <button onClick={()=>renameUser(n)} title="氏名を変更" style={{background:"rgba(255,255,255,0.12)",border:"none",borderRadius:3,width:20,height:20,fontSize:10,cursor:"pointer",padding:0}}>✏️</button>
@@ -13620,6 +13688,7 @@ function App({facility,session,onLogout}){
             <span style={{fontSize:8.5,fontWeight:"bold",background:svcBg(n),color:svcFg(n),borderRadius:3,padding:"1px 4px",marginRight:5}}>{svcJp(n)}</span>
             {n}{hasData(n)&&<span style={{fontSize:9,marginLeft:3,color:"#A5D6A7"}}>●</span>}
             {schedWarn[n]&&<span title={schedWarnText(schedWarn[n],schedToday)} style={{fontSize:8.5,marginLeft:4,background:schedWarn[n].state==="over"?"#C62828":"#EF6C00",color:"#fff",borderRadius:3,padding:"1px 4px",fontWeight:"bold",whiteSpace:"nowrap"}}>{schedWarn[n].state==="over"?"⚠️ 更新時期":"⏳ まもなく更新"}</span>}
+            {jukyuWarn[n]&&<span title={jukyuWarnText(jukyuWarn[n])} style={{fontSize:8.5,marginLeft:4,background:jukyuWarn[n].state==="over"?"#AD1457":"#00838F",color:"#fff",borderRadius:3,padding:"1px 4px",fontWeight:"bold",whiteSpace:"nowrap"}}>{jukyuWarn[n].state==="over"?"📄 受給者証 期限切れ":"📄 受給者証 まもなく"}</span>}
             {(()=>{const p=presence.find(x=>x.user_name===n);return p?<span style={{fontSize:8.5,marginLeft:4,background:"#FF8A65",color:"#fff",borderRadius:3,padding:"1px 4px",whiteSpace:"nowrap"}}>{p.staff_name} 編集中</span>:null;})()}
           </button>
         ))}
@@ -13655,6 +13724,10 @@ function App({facility,session,onLogout}){
           style={{background:schedWarn[sel].state==="over"?"#C62828":"#EF6C00",color:"#fff",border:"none",borderRadius:4,padding:"3px 9px",fontSize:10.5,fontWeight:"bold",cursor:"pointer",whiteSpace:"nowrap"}}>
           {schedWarnText(schedWarn[sel],schedToday)}
         </button>}
+        {sel&&jukyuWarn[sel]&&<button onClick={()=>{setTab(1);setPlanSub(9);}} title="予定表（受給者証の期限）を開きます"
+          style={{background:jukyuWarn[sel].state==="over"?"#AD1457":"#00838F",color:"#fff",border:"none",borderRadius:4,padding:"3px 9px",fontSize:10.5,fontWeight:"bold",cursor:"pointer",whiteSpace:"nowrap"}}>
+          {jukyuWarnText(jukyuWarn[sel])}
+        </button>}
         <button onClick={()=>stepUser(-1)} title="前の利用者" style={{background:"#388E3C",color:"#fff",border:"none",borderRadius:4,width:26,height:22,fontSize:11,cursor:"pointer",padding:0,lineHeight:1}}>◀</button>
         <button onClick={()=>stepUser(1)} title="次の利用者" style={{background:"#388E3C",color:"#fff",border:"none",borderRadius:4,width:26,height:22,fontSize:11,cursor:"pointer",padding:0,lineHeight:1}}>▶</button>
         {sel&&filtered.indexOf(sel)>=0&&<span style={{fontSize:10,color:"#888"}}>{filtered.indexOf(sel)+1} / {filtered.length}名</span>}
@@ -13676,6 +13749,14 @@ function App({facility,session,onLogout}){
         </span>
         <button onClick={()=>{if(!sel)pick(schedOverNames[0]);setTab(1);setPlanSub(9);}} style={{padding:"3px 10px",fontSize:11,fontWeight:"bold",background:"#388E3C",color:"#fff",border:"none",borderRadius:5,cursor:"pointer",whiteSpace:"nowrap"}}>🗓️ 予定表を開く</button>
         <button onClick={()=>setSchedNoticeOff(true)} title="この帯を閉じる（名簿の警告は残ります）" style={{background:"none",border:"none",color:"#C62828",cursor:"pointer",fontSize:14}}>×</button>
+      </div>}
+      {jukyuOverNames.length>0&&!schedNoticeOff&&<div className="np" style={{background:"#FCE4EC",borderBottom:"2px solid #F48FB1",padding:"5px 96px 5px 12px",flexShrink:0,display:"flex",alignItems:"center",flexWrap:"wrap",gap:"2px 10px"}}>
+        <span style={{fontSize:11.5,fontWeight:"bold",color:"#AD1457",whiteSpace:"nowrap"}}>📄 受給者証の期限切れ</span>
+        <span style={{fontSize:11,color:"#5D4037",flex:1,minWidth:180}}>
+          {jukyuOverNames.slice(0,6).map(n=>n+"さん").join("、")}{jukyuOverNames.length>6?" ほか"+(jukyuOverNames.length-6)+"名":""} の支給決定期間が満了しています。更新の確認をしてください。
+        </span>
+        <button onClick={()=>{if(!sel)pick(jukyuOverNames[0]);setTab(1);setPlanSub(9);}} style={{padding:"3px 10px",fontSize:11,fontWeight:"bold",background:"#AD1457",color:"#fff",border:"none",borderRadius:5,cursor:"pointer",whiteSpace:"nowrap"}}>🗓️ 予定表を開く</button>
+        <button onClick={()=>setSchedNoticeOff(true)} title="この帯を閉じる（名簿の警告は残ります）" style={{background:"none",border:"none",color:"#AD1457",cursor:"pointer",fontSize:14}}>×</button>
       </div>}
       {syncErr&&<div className="np" style={{background:"#FFEBEE",borderBottom:"1px solid #EF9A9A",padding:"7px 14px",fontSize:11.5,color:"#C62828",flexShrink:0,display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
         <span>{syncErr}</span>
@@ -13701,10 +13782,10 @@ function App({facility,session,onLogout}){
         {sel&&tab===1&&<div style={{display:"flex",alignItems:"stretch"}}>
           {/* 左側の縦メニュー：個別支援計画書に関連する書類へワンクリックで移動（データは各タブと共通） */}
           <div className="np" style={{width:subFold?24:150,flexShrink:0,display:"flex",flexDirection:"column",gap:4,padding:subFold?"8px 2px":"14px 8px",background:"#F1F8E9",borderRight:"2px solid #C8E6C9"}}>
-            <button onClick={()=>setSubFold(!subFold)} title={subFold?"メニューを開く":"メニューをたたむ"} style={{background:"#fff",color:"#1B5E20",border:"1px solid #C8E6C9",borderRadius:5,cursor:"pointer",fontSize:9.5,fontWeight:"bold",padding:subFold?"6px 0":"4px 0",width:"100%",whiteSpace:"nowrap",overflow:"hidden",marginBottom:2,...(subFold?{writingMode:"vertical-rl",letterSpacing:1,height:118,alignSelf:"center",position:"sticky",top:8,padding:"8px 0"}:{flexShrink:0})}}>{subFold?"\u25B6 \u30E1\u30CB\u30E5\u30FC":"\u25C0 \u305F\u305F\u3080"}{subFold&&schedOverNames.length>0?" ⚠️":""}</button>
+            <button onClick={()=>setSubFold(!subFold)} title={subFold?"メニューを開く":"メニューをたたむ"} style={{background:"#fff",color:"#1B5E20",border:"1px solid #C8E6C9",borderRadius:5,cursor:"pointer",fontSize:9.5,fontWeight:"bold",padding:subFold?"6px 0":"4px 0",width:"100%",whiteSpace:"nowrap",overflow:"hidden",marginBottom:2,...(subFold?{writingMode:"vertical-rl",letterSpacing:1,height:118,alignSelf:"center",position:"sticky",top:8,padding:"8px 0"}:{flexShrink:0})}}>{subFold?"\u25B6 \u30E1\u30CB\u30E5\u30FC":"\u25C0 \u305F\u305F\u3080"}{subFold&&alertNames.length>0?" ⚠️":""}</button>
             {!subFold&&<div style={{fontSize:10,fontWeight:"bold",color:"#888",padding:"0 4px 2px"}}>📚 関連書類（{sel}）</div>}
             {!subFold&&[[0,"👤","利用者マスタ"],[1,"📋","個別支援計画書"],[2,"📊","実施状況"],[3,"💬","面談記録"],[4,"📝","支援記録"],[5,"🧩","障害特性"],[6,"🔍","アセスメント"],[7,"🤝","ケース会議の要点"],[8,"📄","書類作成"],[9,"🗓️","予定表"]].map(([i,ic,l])=>
-              <button key={i} onClick={()=>setPlanSub(i)} style={{textAlign:"left",padding:"9px 10px",border:"none",borderRadius:6,cursor:"pointer",fontSize:12,fontWeight:planSub===i?"bold":"normal",background:planSub===i?"#388E3C":"#fff",color:planSub===i?"#fff":"#1B5E20",borderLeft:planSub===i?"4px solid #1B5E20":"4px solid #C8E6C9",whiteSpace:"nowrap"}}>{ic} {l}{i===9&&schedOverNames.length>0&&<span style={{marginLeft:4,background:"#C62828",color:"#fff",borderRadius:8,padding:"0 5px",fontSize:9,fontWeight:"bold"}}>{schedOverNames.length}</span>}</button>)}
+              <button key={i} onClick={()=>setPlanSub(i)} style={{textAlign:"left",padding:"9px 10px",border:"none",borderRadius:6,cursor:"pointer",fontSize:12,fontWeight:planSub===i?"bold":"normal",background:planSub===i?"#388E3C":"#fff",color:planSub===i?"#fff":"#1B5E20",borderLeft:planSub===i?"4px solid #1B5E20":"4px solid #C8E6C9",whiteSpace:"nowrap"}}>{ic} {l}{i===9&&alertNames.length>0&&<span style={{marginLeft:4,background:"#C62828",color:"#fff",borderRadius:8,padding:"0 5px",fontSize:9,fontWeight:"bold"}}>{alertNames.length}</span>}</button>)}
           </div>
           {/* 右側：選択中の書類（既存の各タブ画面をそのまま表示） */}
           <div style={{flex:1,minWidth:0}}>
