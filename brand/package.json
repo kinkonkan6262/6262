@@ -1,0 +1,15 @@
+{
+  "name": "anna-brand",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Anna ブランドアイコンの生成と、販売版HTMLへのブランド適用ツール",
+  "scripts": {
+    "build": "node build_icons.mjs && node gen_png.mjs && node make_ico.mjs && node preview.mjs"
+  },
+  "dependencies": {
+    "@fontsource/cinzel": "^5.2.5",
+    "@fontsource/great-vibes": "^5.2.5",
+    "opentype.js": "^1.3.4"
+  }
+}
