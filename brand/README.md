@@ -15,17 +15,31 @@
 
 | ファイル | 内容 |
 | --- | --- |
-| `anna-icon.svg` | アイコン本体（花のリース＋筆記体 Anna ＋ PREMIUM）。拡大しても劣化しません |
+| `anna-icon.svg` | アイコン本体（花のリース＋筆記体 Anna ＋ 金の飾り罫）。拡大しても劣化しません |
 | `anna-icon-small.svg` | 16〜48px 用の簡略版（A のモノグラム）。小さくても潰れません |
 | `png/anna-*.png` | 16／32／48／64／128／180／192／256／512／1024 px の PNG |
 | `anna.ico` | Windows のショートカット・デスクトップアイコン用（6サイズ入り） |
-| `preview.png` | 各サイズの見え方の確認用画像 |
+| `anna-folder.svg` | フォルダー型アイコン（フォルダーの形＋筆記体 Anna） |
+| `anna-folder-small.svg` | 16〜48px 用のフォルダー型簡略版 |
+| `png-folder/anna-folder-*.png` | フォルダー型の PNG 一式 |
+| `anna-folder.ico` | Windows のフォルダーアイコン差し替え用 |
+| `folder-icon/` | フォルダーアイコン設定キット（.ico ＋ 設定用 .bat ＋ 説明書） |
+| `preview.png` / `folder_preview.png` / `folder_small.png` | 各サイズの見え方の確認用画像 |
 
 ### 使いかた（アイコン）
 
 - **Windows のショートカットに設定**：ショートカットを右クリック →「プロパティ」→「アイコンの変更」→ `anna.ico` を選択。
 - **iPhone / iPad のホーム画面**：Safari で HTML を開き「ホーム画面に追加」。アイコンは自動で適用されます。
 - **チラシ・名刺・メール署名など**：`png/anna-512.png` または `anna-icon.svg` を使ってください。
+
+### 使いかた（パソコンのフォルダーのアイコン）
+
+`folder-icon/` の中身をそのまま配布・利用できます。
+
+- **手作業**：フォルダーを右クリック →「プロパティ」→「カスタマイズ」タブ →「アイコンの変更」→ `anna-folder.ico` を選択。
+- **自動**：`anna-folder.ico` と `フォルダーアイコンを設定.bat` を対象フォルダーに入れて、bat をダブルクリック
+  （`desktop.ini` を作成し、フォルダーに読み取り専用属性を付けてアイコンを反映させます）。
+- 元に戻すときは、そのフォルダーの `desktop.ini`（隠しファイル）を削除します。
 
 ## 販売版HTMLへのブランド適用
 
