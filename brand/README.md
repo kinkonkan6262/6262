@@ -26,6 +26,7 @@
 | `folder-icon/` | フォルダーアイコン設定キット（.ico ＋ 設定用 .bat ＋ 説明書） |
 | `preview.png` / `folder_preview.png` / `folder_small.png` | 各サイズの見え方の確認用画像 |
 | `make_sheet.mjs` / `shot_gate.png` | ブラウザで見られる紹介ページ（ブランドシート）の生成スクリプトと素材 |
+| `make_guide.mjs` / `customer-kit/` | お客様向けアイコン設定キット（説明書PDF・ico・png）と、その生成スクリプト |
 
 ### 使いかた（アイコン）
 
@@ -86,3 +87,15 @@ node make_sheet.mjs      # anna-brand-sheet.html を書き出す
 
 認証画面のスクリーンショット `shot_gate.png` を差し替えると、ページの
 「ソフトを開いたときの画面」も新しくなります。
+
+## お客様向けアイコン設定キット
+
+販売時にソフトと一緒に添付する、アイコン設定の説明書（A4・2ページ）を書き出します。
+
+```bash
+node make_guide.mjs      # customer-kit/Annaアイコンの設定方法.pdf を作り直す
+```
+
+`customer-kit/` の4ファイルをまとめて zip にし、ソフト本体と一緒にメールへ添付します。
+Windows のファイル自体のアイコンは拡張子で決まるため変更できません。
+説明書は、ショートカットを作ってアイコンを設定する手順を案内する内容です。
