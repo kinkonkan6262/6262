@@ -15,7 +15,7 @@
 
 | ファイル | 内容 |
 | --- | --- |
-| `anna-icon.svg` | アイコン本体（花のリース＋筆記体 Anna ＋ 金の飾り罫）。拡大しても劣化しません |
+| `anna-icon.svg` | アイコン本体（花のリース＋筆記体 Anna〈商品ラベルと同じ書体〉＋金の飾り罫）。拡大しても劣化しません |
 | `anna-icon-small.svg` | 16〜48px 用の簡略版（A のモノグラム）。小さくても潰れません |
 | `png/anna-*.png` | 16／32／48／64／128／180／192／256／512／1024 px の PNG |
 | `anna.ico` | Windows のショートカット・デスクトップアイコン用（6サイズ入り） |
@@ -71,5 +71,5 @@ node preview.mjs         # preview.png で見え方を確認
 ```
 
 `icon_core.mjs` に花・葉・蔓の描画、`build_icons.mjs` に全体の構成、
-`mkword.mjs` に文字のベクター化（Great Vibes／Cinzel、SIL OFL）が入っています。
+`mkword.mjs` に文字のベクター化（Alex Brush／Cinzel、SIL OFL）が入っています。
 書き出し後のアイコンはすべてパス化されているため、フォントは不要です。

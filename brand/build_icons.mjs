@@ -2,7 +2,8 @@ import fs from "fs";
 import { BLUE, BLUE_D, GOLD, GOLD_L, WHITE, cornerSprig } from "./icon_core.mjs";
 import { textPath } from "./mkword.mjs";
 
-const GV = "node_modules/@fontsource/great-vibes/files/great-vibes-latin-400-normal.woff";
+// 写真のラベルに合わせた筆記体（Alex Brush）
+const GV = "node_modules/@fontsource/alex-brush/files/alex-brush-latin-400-normal.woff";
 const CZ = "node_modules/@fontsource/cinzel/files/cinzel-latin-500-normal.woff";
 
 // 文字パスを指定の枠に収めて中央配置する
@@ -49,7 +50,7 @@ export function iconFull() {
   <rect x="30" y="30" width="452" height="452" rx="88" fill="none" stroke="url(#annaIcoGold)" stroke-width="7"/>
   <rect x="45" y="45" width="422" height="422" rx="76" fill="none" stroke="url(#annaIcoGold)" stroke-width="2.6" opacity="0.75"/>
   ${corners}
-  ${fit(GV, "Anna", { x: 100, y: 150, w: 312, h: 176 }, { fill: WHITE })}
+  ${fit(GV, "Anna", { x: 88, y: 146, w: 336, h: 190 }, { fill: WHITE })}
   ${flourish()}
 </svg>`;
 }
@@ -64,7 +65,7 @@ export function iconSmall() {
   </defs>
   <rect width="512" height="512" rx="112" fill="url(#annaIcoBg2)"/>
   <rect x="34" y="34" width="444" height="444" rx="86" fill="none" stroke="${GOLD}" stroke-width="14"/>
-  ${fit(GV, "A", { x: 120, y: 110, w: 272, h: 292 }, { fill: WHITE })}
+  ${fit(GV, "A", { x: 112, y: 104, w: 288, h: 304 }, { fill: WHITE })}
 </svg>`;
 }
 
@@ -102,7 +103,7 @@ export function iconFolder() {
     <g transform="translate(44,416) scale(0.5,-0.5)">${sprig}</g>
     <g transform="translate(468,416) scale(-0.5,-0.5)">${sprig}</g>
   </g>
-  ${fit(GV, "Anna", { x: 128, y: 236, w: 256, h: 122 }, { fill: WHITE })}
+  ${fit(GV, "Anna", { x: 118, y: 230, w: 276, h: 132 }, { fill: WHITE })}
   <g transform="translate(256,392)" fill="none" stroke="${GOLD}" stroke-linecap="round">
     <path d="M-92,0 L-18,0" stroke-width="3"/>
     <path d="M92,0 L18,0" stroke-width="3"/>
@@ -131,7 +132,7 @@ export function iconFolderSmall() {
   <path d="M26,214 Q26,190 52,190 L460,190 Q486,190 486,214 L486,406
            Q486,432 458,432 L54,432 Q26,432 26,406 Z"
         fill="none" stroke="${GOLD}" stroke-width="12"/>
-  ${fit(GV, "Anna", { x: 96, y: 232, w: 320, h: 152 }, { fill: WHITE })}
+  ${fit(GV, "Anna", { x: 88, y: 226, w: 336, h: 164 }, { fill: WHITE })}
 </svg>`;
 }
 
