@@ -14,9 +14,10 @@ set "SRCDIR=%~dp0"
 if "%SRCDIR:~-1%"=="\" set "SRCDIR=%SRCDIR:~0,-1%"
 
 rem ---- 同じフォルダにある本体HTMLを探す ----------------------
+rem  候補が複数あるときは「更新日時が最も新しいもの」を選ぶ
 set "HTMLNAME="
-for %%F in ("%SRCDIR%\Anna_AI*.html") do if not defined HTMLNAME set "HTMLNAME=%%~nxF"
-if not defined HTMLNAME for %%F in ("%SRCDIR%\*.html") do if not defined HTMLNAME set "HTMLNAME=%%~nxF"
+for /f "delims=" %%F in ('dir /b /a-d /o-d "%SRCDIR%\Anna_AI*.html" 2^>nul') do if not defined HTMLNAME set "HTMLNAME=%%F"
+if not defined HTMLNAME for /f "delims=" %%F in ('dir /b /a-d /o-d "%SRCDIR%\*.html" 2^>nul') do if not defined HTMLNAME set "HTMLNAME=%%F"
 
 if not defined HTMLNAME (
   echo   [エラー] このファイルと同じフォルダに本体の HTML が見つかりません。
@@ -38,6 +39,11 @@ set "LNKDESC=Anna AI支援記録Pro"
 echo   本体ファイル : %HTMLNAME%
 echo   保存場所     : %SRCDIR%
 echo.
+echo   このファイルのショートカットをデスクトップに作成します。
+echo   よろしければ何かキーを押してください。
+echo   （違う場合は、この画面の右上の x で閉じてください）
+echo.
+pause >nul
 
 if not exist "%APPDIR%" mkdir "%APPDIR%" >nul 2>&1
 
