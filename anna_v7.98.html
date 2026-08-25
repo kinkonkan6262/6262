@@ -8917,7 +8917,7 @@ const MANUAL=[
    ["🔍 加算名で探す","一覧の中を文字でしぼり込みます。"],
    ["➕ 行追加 ／ 🗑","事業所に合わせて行を足す・消す。すべての欄をその場で書き換えられます。"],
    ["📤 書き出し","いまの一覧をファイル（JSON）に保存します。控えを取るとき・別の端末へ移すときに使います。"],
-   ["📥 読み込み","保存したファイルを読み込んで一覧を入れ替えます。新しい改定の一覧をお配りしたときも、ここから取り込めます。"],
+   ["📥 読み込み","保存したファイルを読み込んで一覧を入れ替えます。販売元からお送りする配信ファイル（reward_master.json）もそのまま読み込めます。"],
    ["🔄 配信を確認","新しい一覧が配信されていないか、その場で確認します（インターネットにつながっているときだけ）。"],
    ["↩ 最新の一覧に更新","最新の一覧に入れ替えます。新しい版があるときは画面の上に「🆕 新しい一覧が配信されています」と出ます。"],
    ["🖨 印刷","一覧をそのまま印刷できます。"]]],
@@ -9754,13 +9754,16 @@ function RewardListTab({svc}){
       rd.onload=()=>{
         try{
           const d=JSON.parse(rd.result);
-          const rw=Array.isArray(d)?d:(d&&Array.isArray(d.rows)?d.rows:null);
+          // 3つの形に対応：①配列だけ ②書き出したファイル{rows:[…]} ③配信ファイル{rows:{B,A,I}}
+          const rw=Array.isArray(d)?d
+                  :(d&&Array.isArray(d.rows))?d.rows
+                  :(d&&d.rows&&Array.isArray(d.rows[svc]))?d.rows[svc]:null;
           if(!rw||!rw.length) throw new Error("形式が違います");
           if(!window.confirm("読み込んだ内容で一覧を入れ替えます。よろしいですか？")) return;
           setRows(rw.map(x=>({cat:String(x.cat||""),name:String(x.name||""),unit:String(x.unit||""),memo:String(x.memo||"")})));
           setVer((d&&d.ver)||"読み込み");
           alert("一覧を読み込みました。");
-        }catch(e){alert("このファイルは読み込めませんでした。\n（この画面の［📤 書き出し］で作ったJSONファイルを選んでください）");}
+        }catch(e){alert("このファイルは読み込めませんでした。\n（この画面の［📤 書き出し］で作ったJSONファイル、または販売元からお送りする配信ファイル reward_master.json を選んでください）");}
       };
       rd.readAsText(f);
     };
