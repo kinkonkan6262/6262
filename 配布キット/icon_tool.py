@@ -41,7 +41,8 @@ def embed_bat(ico: Path, bat: Path) -> None:
 def _ico_to_png_or_ico(ico: Path) -> tuple:
     """.ico の中に PNG 形式の画像が入っていればそれを取り出す（無ければ .ico のまま使う）。"""
     data = ico.read_bytes()
-    if ico.suffix.lower() == ".png" or data[:8] == b"\x89PNG\r\n\x1a\n":
+    # 拡張子ではなく中身で判定する（.ico を .png にリネームして渡された場合も正しく扱う）
+    if data[:8] == b"\x89PNG\r\n\x1a\n":
         return "image/png", data
     if len(data) >= 6 and data[:4] == b"\x00\x00\x01\x00":
         count = struct.unpack("<H", data[4:6])[0]
