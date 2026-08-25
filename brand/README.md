@@ -25,6 +25,7 @@
 | `anna-folder.ico` | Windows のフォルダーアイコン差し替え用 |
 | `folder-icon/` | フォルダーアイコン設定キット（.ico ＋ 設定用 .bat ＋ 説明書） |
 | `preview.png` / `folder_preview.png` / `folder_small.png` | 各サイズの見え方の確認用画像 |
+| `make_sheet.mjs` / `shot_gate.png` | ブラウザで見られる紹介ページ（ブランドシート）の生成スクリプトと素材 |
 
 ### 使いかた（アイコン）
 
@@ -73,3 +74,15 @@ node preview.mjs         # preview.png で見え方を確認
 `icon_core.mjs` に花・葉・蔓の描画、`build_icons.mjs` に全体の構成、
 `mkword.mjs` に文字のベクター化（Alex Brush／Cinzel、SIL OFL）が入っています。
 書き出し後のアイコンはすべてパス化されているため、フォントは不要です。
+
+## 紹介ページ（ブランドシート）
+
+アイコンを実寸で確認できる 1 枚ページを書き出します。画像はすべて data URI で
+埋め込まれるため、HTML 1 ファイルだけで表示できます。
+
+```bash
+node make_sheet.mjs      # anna-brand-sheet.html を書き出す
+```
+
+認証画面のスクリーンショット `shot_gate.png` を差し替えると、ページの
+「ソフトを開いたときの画面」も新しくなります。
