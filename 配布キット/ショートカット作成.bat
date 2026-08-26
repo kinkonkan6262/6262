@@ -20,6 +20,33 @@ echo 実行場所 : %SRCDIR% >> "%LOG%"
 echo ユーザー : %USERNAME% >> "%LOG%"
 echo OS       : %OS% >> "%LOG%"
 
+rem ---- ZIPの中から直接実行されていないか確認 ------------------
+rem  ZIPを展開せずに実行すると、Windowsが一時フォルダへ勝手に展開する。
+rem  そこへショートカットを作ると、あとで一時フォルダごと消えて動かなくなる。
+set "INZIP="
+call set "CHK=%%SRCDIR:%TEMP%=%%"
+if not "%CHK%"=="%SRCDIR%" set "INZIP=1"
+echo "%SRCDIR%" | findstr /i /c:"\Temp1_" /c:"\Temp2_" /c:"\Temp3_" /c:"\Temp4_" >nul 2>&1
+if not errorlevel 1 set "INZIP=1"
+
+if defined INZIP (
+  echo 結果     : ZIP内から直接実行された >> "%LOG%"
+  echo   [ご注意] ZIPファイルの中から直接実行されています。
+  echo.
+  echo   このままでは、あとでアイコンが動かなくなってしまいます。
+  echo.
+  echo   お手数ですが、次の手順でやり直してください。
+  echo.
+  echo     1. この画面を閉じる
+  echo     2. 受け取った ZIP ファイルを右クリックする
+  echo     3. 「すべて展開」を選び、「展開」ボタンを押す
+  echo     4. 出てきたフォルダの中の「ショートカット作成」を
+  echo        ダブルクリックする
+  echo.
+  pause
+  exit /b 1
+)
+
 rem ---- 同じフォルダにある本体HTMLを探す ----------------------
 rem  候補が複数あるときは「更新日時が最も新しいもの」を選ぶ
 set "HTMLNAME="
