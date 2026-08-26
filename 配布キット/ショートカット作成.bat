@@ -13,6 +13,13 @@ set "SELFPATH=%~f0"
 set "SRCDIR=%~dp0"
 if "%SRCDIR:~-1%"=="\" set "SRCDIR=%SRCDIR:~0,-1%"
 
+set "LOG=%SRCDIR%\Anna_診断ログ.txt"
+echo ============================================== > "%LOG%"
+echo 実行日時 : %DATE% %TIME% >> "%LOG%"
+echo 実行場所 : %SRCDIR% >> "%LOG%"
+echo ユーザー : %USERNAME% >> "%LOG%"
+echo OS       : %OS% >> "%LOG%"
+
 rem ---- 同じフォルダにある本体HTMLを探す ----------------------
 rem  候補が複数あるときは「更新日時が最も新しいもの」を選ぶ
 set "HTMLNAME="
@@ -20,6 +27,7 @@ for /f "delims=" %%F in ('dir /b /a-d /o-d "%SRCDIR%\Anna_AI*.html" 2^>nul') do 
 if not defined HTMLNAME for /f "delims=" %%F in ('dir /b /a-d /o-d "%SRCDIR%\*.html" 2^>nul') do if not defined HTMLNAME set "HTMLNAME=%%F"
 
 if not defined HTMLNAME (
+  echo 結果     : HTMLが見つからない >> "%LOG%"
   echo   [エラー] このファイルと同じフォルダに本体の HTML が見つかりません。
   echo.
   echo   本体の HTML ファイルと、このファイルを同じフォルダに入れてから
@@ -59,8 +67,12 @@ if exist "%SRCDIR%\%ICONNAME%" (
   if exist "%ICOPATH%" set "ICONOK=1"
 )
 
+echo 本体HTML : %HTMLNAME% >> "%LOG%"
+if defined ICONOK (echo アイコン : 準備OK ^(%ICOPATH%^) >> "%LOG%") else (echo アイコン : 準備できず >> "%LOG%")
+
 rem ---- ショートカットを作成する ------------------------------
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+ "$ErrorActionPreference = 'Stop';" ^
  "$w = New-Object -ComObject WScript.Shell;" ^
  "$p = Join-Path ([Environment]::GetFolderPath('Desktop')) $env:LNKNAME;" ^
  "$s = $w.CreateShortcut($p);" ^
@@ -68,15 +80,20 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
  "$s.WorkingDirectory = $env:SRCDIR;" ^
  "$s.Description = $env:LNKDESC;" ^
  "if (Test-Path -LiteralPath $env:ICOPATH) { $s.IconLocation = $env:ICOPATH + ',0' };" ^
- "$s.Save()"
+ "$s.Save();" ^
+ "Write-Output ('作成先   : ' + $p);" ^
+ "Write-Output ('作成確認 : ' + (Test-Path -LiteralPath $p))" >> "%LOG%" 2>&1
 
 if errorlevel 1 (
+  echo 結果     : ショートカット作成に失敗 >> "%LOG%"
   echo.
   echo   [エラー] ショートカットを作成できませんでした。
   echo.
   pause
   exit /b 1
 )
+
+echo 結果     : 正常終了 >> "%LOG%"
 
 rem ---- アイコンキャッシュを更新 ------------------------------
 ie4uinit.exe -show >nul 2>&1
@@ -91,6 +108,9 @@ if defined ICONOK (
 )
 echo.
 echo   デスクトップの「Anna AI支援記録Pro」をダブルクリックすると起動します。
+echo.
+echo   うまくいかない場合は、このフォルダにできた
+echo   「Anna_診断ログ.txt」を送ってください。
 echo.
 echo   ※ 本体の HTML ファイルを別のフォルダへ移動した場合は、
 echo      移動先で、このファイルをもう一度実行してください。
@@ -110,7 +130,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
  "$b64 = ($src[$m.LineNumber..($src.Count-1)] | ForEach-Object { if ($_.StartsWith('::')) { $_.Substring(2) } else { $_ } }) -join '';" ^
  "$b64 = $b64.Trim();" ^
  "if ($b64.Length -lt 200) { exit 1 };" ^
- "[IO.File]::WriteAllBytes($env:ICOPATH, [Convert]::FromBase64String($b64))" >nul 2>&1
+ "[IO.File]::WriteAllBytes($env:ICOPATH, [Convert]::FromBase64String($b64))" >> "%LOG%" 2>&1
 exit /b 0
 
 goto :EOF
