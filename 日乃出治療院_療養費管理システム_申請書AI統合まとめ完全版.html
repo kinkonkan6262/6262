@@ -188,6 +188,7 @@ table.grid td.ctr,table.grid th.ctr{text-align:center;}
   <nav class="tabs" id="tabs">
     <button data-tab="meibo" class="active">患者名簿</button>
     <button data-tab="nyuryoku">施術入力</button>
+    <button data-tab="honjitsu">本日の患者</button>
     <button data-tab="seikyu">申請書・印刷</button>
     <button data-tab="shukei">集計表</button>
     <button data-tab="doui">同意書管理</button>
@@ -232,6 +233,20 @@ table.grid td.ctr,table.grid th.ctr{text-align:center;}
           <select id="nyPatient" onchange="loadRecord()"></select></div>
       </div>
       <div id="nyArea" class="muted">患者を選んでください。</div>
+    </div>
+  </section>
+
+  <!-- ============ 本日の患者 ============ -->
+  <section class="view" id="view-honjitsu">
+    <div class="panel">
+      <div class="row" style="margin-bottom:10px;align-items:flex-end;gap:8px;flex-wrap:wrap">
+        <div class="field"><label>受けた日</label><input type="date" id="hjDate" onchange="renderHonjitsu()"></div>
+        <button class="btn" onclick="hjShiftDay(-1)">← 前日</button>
+        <button class="btn" onclick="hjToday()">今日</button>
+        <button class="btn" onclick="hjShiftDay(1)">翌日 →</button>
+      </div>
+      <p class="hint" style="margin:0 0 10px">その日に施術した患者が自動で並びます。区分（療／前券／後券／療＋前券／療＋後券）と手出しはこの画面で直せます。「請求書を作る」を押すと、その患者の様式に自動でつないで請求書を作成します。</p>
+      <div id="hjArea"></div>
     </div>
   </section>
 
@@ -551,18 +566,22 @@ function calc(p, ym){
   if(cnt===0) return out;
 
   if(p.ins==='利用証一般'){
-    out.unit = R.riyou_ippan; out.juts = R.riyou_ippan*cnt;
+    // 前券（利用券 一般）として数える日だけを計上
+    const n = ippanDates(rec,p).length; out.count = n;
+    out.unit = R.riyou_ippan; out.juts = R.riyou_ippan*n;
     out.total = out.juts; out.burden=0; out.seikyu = out.juts;
   } else if(p.ins==='利用証後期' || p.ins==='後期助成後'){
-    out.unit = R.riyou_kouki; out.juts = R.riyou_kouki*cnt;
+    // 後券（利用券 後期）として数える日だけを計上
+    const n = koukiDates(rec,p).length; out.count = n;
+    out.unit = R.riyou_kouki; out.juts = R.riyou_kouki*n;
     out.total = out.juts; out.burden=0; out.seikyu = out.juts;
   } else if(p.ins==='生保'){
     out.unit = R.juts1; out.juts = R.juts1*cnt;
     out.shokenFee = shoken ? R.shoken_seiho : 0;
     out.total = out.juts + out.shokenFee; out.burden=0; out.seikyu = out.total;
   } else { // 社保・国保・後期・共済 = 療養費
-    // 国保は日ごとの区分で「療養費(+セット)」の日だけを療養費として計上
-    const rcnt = (p.ins==='国保') ? ryoyoDates(rec,p).length : cnt;
+    // 日ごとの区分がある種別は「療 / 療＋前券 / 療＋後券」の日だけを療養費として計上
+    const rcnt = ryoyoDates(rec,p).length;
     out.count = rcnt;
     out.unit = (p.tech==='1') ? R.juts1 : R.juts2;
     out.juts = out.unit*rcnt;
@@ -576,25 +595,60 @@ function calc(p, ym){
 }
 
 /* ------------------------------------------------------------
-   国保：施術日ごとの区分（療養費 r / 利用券 t / 療養費＋利用券(セット) b）
-   ・既定は療養費（r）。利用券のみ(t) / セット(b) に切替可
-   ・療養費の金額計算は r・b の日だけで行う（t の日は療養費から除外）
-   ・利用券の日数は t・b（セット日は両方に計上）
+   施術日ごとの区分（国保・後期・利用証一般・利用証後期）
+     r … 療        （療養費のみ）
+     t … 前券      （利用券 一般 のみ）
+     k … 後券      （利用券 後期 のみ）
+     b … 療＋前券  （療養費と一般利用券のセット）
+     c … 療＋後券  （療養費と後期利用券のセット）
+   ・既定は 国保／後期＝療、利用証一般＝前券、利用証後期＝後券
+   ・療養費として数える日は r・b・c／前券は t・b／後券は k・c
    手出し（自己負担分）は 社保・国保・後期・共済・生保・利用証一般・利用証後期 で手入力可
    ------------------------------------------------------------ */
-const KUBUN_LABEL = {r:'療養費', t:'利用券', b:'療養費＋利用券'};
+const KUBUN_LABEL = {r:'療', t:'前券', k:'後券', b:'療＋前券', c:'療＋後券'};
+const KUBUN_CODES = ['r','t','k','b','c'];
+const KUBUN_TYPES = ['国保','後期','利用証一般','利用証後期'];
 const TEDASHI_TYPES = ['社保','国保','後期','共済','生保','利用証一般','利用証後期'];
-function kubunOf(rec, d){ return (rec && rec.kubun && rec.kubun[d]) || 'r'; }
+function hasKubun(ins){ return KUBUN_TYPES.includes(ins); }
+function defaultKubun(ins){
+  if(ins==='利用証一般') return 't';
+  if(ins==='利用証後期') return 'k';
+  return 'r';
+}
+function kubunOf(rec, d, p){
+  const k = rec && rec.kubun && rec.kubun[d];
+  if(k && KUBUN_CODES.indexOf(k)>=0) return k;
+  return defaultKubun(p && p.ins);
+}
+/* 療養費として数える日（療・療＋前券・療＋後券） */
 function ryoyoDates(rec, p){
   if(!rec) return [];
-  if(!p || p.ins!=='国保') return rec.dates.slice();
-  return rec.dates.filter(d=>{ const k=kubunOf(rec,d); return k==='r'||k==='b'; });
+  if(!p || !hasKubun(p.ins)) return rec.dates.slice();
+  return rec.dates.filter(d=>{ const k=kubunOf(rec,d,p); return k==='r'||k==='b'||k==='c'; });
 }
-function ticketDates(rec, p){
-  if(!rec || !p || p.ins!=='国保') return [];
-  return rec.dates.filter(d=>{ const k=kubunOf(rec,d); return k==='t'||k==='b'; });
+/* 前券（利用券 一般）として数える日（前券・療＋前券） */
+function ippanDates(rec, p){
+  if(!rec || !p) return [];
+  if(!hasKubun(p.ins)) return (p.ins==='利用証一般') ? rec.dates.slice() : [];
+  return rec.dates.filter(d=>{ const k=kubunOf(rec,d,p); return k==='t'||k==='b'; });
 }
+/* 後券（利用券 後期）として数える日（後券・療＋後券） */
+function koukiDates(rec, p){
+  if(!rec || !p) return [];
+  if(!hasKubun(p.ins)) return (p.ins==='利用証後期'||p.ins==='後期助成後') ? rec.dates.slice() : [];
+  return rec.dates.filter(d=>{ const k=kubunOf(rec,d,p); return k==='k'||k==='c'; });
+}
+function ticketDates(rec, p){ return ippanDates(rec, p); }   // 旧名（前券）
 function effRyoyoDates(p, ym){ return ryoyoDates(getRecord(p.id,ym), p); }
+/* 療養費として請求する金額（利用証系の患者に「療」の日がある場合も計算できる） */
+function ryoAmount(p, ym){
+  const rec=getRecord(p.id,ym); const R=DB.settings.rates;
+  const n=ryoyoDates(rec,p).length; if(!n) return 0;
+  if(isRyoyo(p.ins)) return calc(p,ym).seikyu;   // 初検料・一部負担こみ
+  const unit=(p.tech==='1')?R.juts1:R.juts2;
+  const tot=unit*n;
+  return tot - Math.round(tot*((p.burden||0)/10));
+}
 
 /* ============================================================
    タブ切り替え
@@ -605,11 +659,15 @@ document.querySelectorAll('#tabs button').forEach(b=>{
     document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
     b.classList.add('active');
     document.getElementById('view-'+b.dataset.tab).classList.add('active');
-    const fn={meibo:renderMeibo, nyuryoku:renderNyuryoku, seikyu:renderSeikyuMenu,
+    const fn={meibo:renderMeibo, nyuryoku:renderNyuryoku, honjitsu:renderHonjitsu, seikyu:renderSeikyuMenu,
               shukei:renderShukei, doui:renderDoui, settei:renderSettei, ai:renderAi}[b.dataset.tab];
     if(fn) fn();
   };
 });
+function goTab(name){
+  const b=document.querySelector('#tabs button[data-tab="'+name+'"]');
+  if(b) b.click();
+}
 
 /* ============================================================
    患者名簿
@@ -755,16 +813,16 @@ function loadRecord(){
   }
   cal+='</div>';
 
-  // 国保：施術日ごとの区分（療養費 / 利用券 / 療養費＋利用券）
+  // 施術日ごとの区分（国保・後期・利用証一般・利用証後期）
   let kubunUI='';
-  if(p.ins==='国保' && rec.dates.length){
-    kubunUI='<div style="margin-top:14px"><div style="font-weight:700;margin-bottom:4px">日ごとの区分（国保）</div>'
-      +'<p class="hint" style="margin:0 0 8px">既定は療養費。利用券のみ／療養費＋利用券（セット）に切替できます。</p>';
+  if(hasKubun(p.ins) && rec.dates.length){
+    kubunUI=`<div style="margin-top:14px"><div style="font-weight:700;margin-bottom:4px">日ごとの区分（${esc(p.ins)}）</div>`
+      +`<p class="hint" style="margin:0 0 8px">既定は${KUBUN_LABEL[defaultKubun(p.ins)]}。療／前券／後券／療＋前券／療＋後券に切替できます。</p>`;
     rec.dates.forEach(d=>{
-      const k=kubunOf(rec,d);
+      const k=kubunOf(rec,d,p);
       kubunUI+=`<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;flex-wrap:wrap">
         <span style="width:46px;text-align:right">${d}日</span>`
-        +['r','t','b'].map(code=>`<button class="btn sm ${k===code?'primary':''}" onclick="setKubun('${pid}','${ym}',${d},'${code}')">${KUBUN_LABEL[code]}</button>`).join('')
+        +KUBUN_CODES.map(code=>`<button class="btn sm ${k===code?'primary':''}" onclick="setKubun('${pid}','${ym}',${d},'${code}')">${KUBUN_LABEL[code]}</button>`).join('')
         +'</div>';
     });
     kubunUI+='</div>';
@@ -862,13 +920,14 @@ function renderKubunSummary(p, ym){
   const rec=getRecord(p.id,ym);
   const R=DB.settings.rates;
   const rows=[]; let base=0;
-  if(p.ins==='国保'){
-    const c=calc(p,ym);              // 療養費（療養費＋セットの日）
-    const td=ticketDates(rec,p);     // 利用券（利用券＋セットの日）
-    const tAmt=td.length*R.riyou_ippan;
-    rows.push(['療養費（国保）', c.count+'回', c.seikyu]);
-    rows.push(['利用券（一般）', td.length+'日', tAmt]);
-    base = c.seikyu + tAmt;
+  if(hasKubun(p.ins)){
+    const rd=ryoyoDates(rec,p), id=ippanDates(rec,p), kd=koukiDates(rec,p);
+    const rAmt=ryoAmount(p,ym), iAmt=id.length*R.riyou_ippan, kAmt=kd.length*R.riyou_kouki;
+    if(rd.length) rows.push(['療（療養費）', rd.length+'回', rAmt]);
+    if(id.length) rows.push(['前券（利用券 一般）', id.length+'日', iAmt]);
+    if(kd.length) rows.push(['後券（利用券 後期）', kd.length+'日', kAmt]);
+    if(!rows.length) rows.push([insLabel(p.ins), '0回', 0]);
+    base = rAmt + iAmt + kAmt;
   } else {
     const c=calc(p,ym);
     rows.push([c.label, c.count+((isRyoyo(p.ins)||p.ins==='生保')?'回':'日'), c.seikyu]);
@@ -887,7 +946,9 @@ function renderKubunSummary(p, ym){
 /* 手出しを除いた区分計（総合計の再計算用） */
 function tedashiBase(p, ym){
   const R=DB.settings.rates; const rec=getRecord(p.id,ym);
-  if(p.ins==='国保'){ const c=calc(p,ym); return c.seikyu + ticketDates(rec,p).length*R.riyou_ippan; }
+  if(hasKubun(p.ins)){
+    return ryoAmount(p,ym) + ippanDates(rec,p).length*R.riyou_ippan + koukiDates(rec,p).length*R.riyou_kouki;
+  }
   return calc(p,ym).seikyu;
 }
 /* その日1日の合計（施術料＋手出し）を計算 */
@@ -897,13 +958,13 @@ function dayTotal(p, ym, d){
   const ted = (rec && rec.tedashiDays && Number(rec.tedashiDays[d]))||0;
   const parts=[]; let sum=0;
   if(on){
-    if(p.ins==='国保'){
-      const k=kubunOf(rec,d);
-      if(k==='r'||k==='b'){ const u=(p.tech==='1'?R.juts1:R.juts2); parts.push(['療養費（施術料）',u]); sum+=u; }
-      if(k==='t'||k==='b'){ parts.push(['利用券',R.riyou_ippan]); sum+=R.riyou_ippan; }
+    if(hasKubun(p.ins)){
+      const k=kubunOf(rec,d,p);
+      if(k==='r'||k==='b'||k==='c'){ const u=(p.tech==='1'?R.juts1:R.juts2); parts.push(['療（施術料）',u]); sum+=u; }
+      if(k==='t'||k==='b'){ parts.push(['前券（利用券 一般）',R.riyou_ippan]); sum+=R.riyou_ippan; }
+      if(k==='k'||k==='c'){ parts.push(['後券（利用券 後期）',R.riyou_kouki]); sum+=R.riyou_kouki; }
     } else if(isRyoyo(p.ins)){ const u=(p.tech==='1'?R.juts1:R.juts2); parts.push(['療養費（施術料）',u]); sum+=u; }
-    else if(p.ins==='利用証一般'){ parts.push(['利用券',R.riyou_ippan]); sum+=R.riyou_ippan; }
-    else if(p.ins==='利用証後期'||p.ins==='後期助成後'){ parts.push(['助成',R.riyou_kouki]); sum+=R.riyou_kouki; }
+    else if(p.ins==='後期助成後'){ parts.push(['助成',R.riyou_kouki]); sum+=R.riyou_kouki; }
     else if(p.ins==='生保'){ parts.push(['施術料',R.juts1]); sum+=R.juts1; }
   }
   if(ted){ parts.push(['手出し',ted]); sum+=ted; }
@@ -933,6 +994,154 @@ function setTedashiDay(pid, ym, d){
   const cEl=document.getElementById('ny_kubun_tdcnt'); if(cEl) cEl.textContent=cnt?cnt+'日':'';
   const tEl=document.getElementById('ny_kubun_ted'); if(tEl) tEl.textContent=yen(ted);
   const totEl=document.getElementById('ny_kubun_total'); if(totEl) totEl.textContent=yen(tedashiBase(p,ym)+ted);
+}
+
+
+/* ============================================================
+   本日の患者（その日に施術した患者を一覧 → そのまま請求まで）
+   ============================================================ */
+function hjTodayStr(){
+  const d=new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function hjToday(){ const e=document.getElementById('hjDate'); if(e){ e.value=hjTodayStr(); renderHonjitsu(); } }
+function hjShiftDay(n){
+  const e=document.getElementById('hjDate'); if(!e) return;
+  const v=e.value||hjTodayStr();
+  const [y,m,d]=v.split('-').map(Number);
+  const dt=new Date(y, m-1, d+n);
+  e.value=dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
+  renderHonjitsu();
+}
+/* その日に来た患者（施術日、または手出しの入力がある日） */
+function hjPatients(ym, day){
+  return DB.patients.filter(p=>{
+    const rec=getRecord(p.id,ym); if(!rec) return false;
+    if(rec.dates.includes(day)) return true;
+    return !!(rec.tedashiDays && Number(rec.tedashiDays[day])>0);
+  });
+}
+/* 患者の保険種別 → 個人別の請求様式（selectのid, 出力関数名） */
+const HJ_SEIKYU={
+  '社保':      ['meisaiPtShinseisho',  'linkExcelShinseisho',  '⑩ 療養費支給申請書'],
+  '国保':      ['meisaiPtShinseisho',  'linkExcelShinseisho',  '⑩ 療養費支給申請書'],
+  '後期':      ['meisaiPtShinseisho',  'linkExcelShinseisho',  '⑩ 療養費支給申請書'],
+  '共済':      ['meisaiPtShinseisho',  'linkExcelShinseisho',  '⑩ 療養費支給申請書'],
+  '利用証一般':['meisaiPtRiyouIppan',  'linkExcelRiyouIppan',  '⑨ 利用券一般 明細書'],
+  '利用証後期':['meisaiPtKoukiGo',     'linkExcelKoukiGo',     '⑧ 後期高齢（後）明細書'],
+  '後期助成後':['meisaiPtKoukiGo',     'linkExcelKoukiGo',     '⑧ 後期高齢（後）明細書']
+};
+function renderHonjitsu(){
+  const dEl=document.getElementById('hjDate'); if(!dEl) return;
+  if(!dEl.value) dEl.value=hjTodayStr();
+  const box=document.getElementById('hjArea'); if(!box) return;
+  const dv=dEl.value, ym=dv.slice(0,7), day=Number(dv.slice(8,10));
+  const list=hjPatients(ym, day);
+  const head=`<div style="font-weight:700;margin-bottom:8px">${warekiDate(ym,day)}（${list.length}名）</div>`;
+  if(!list.length){
+    box.innerHTML=head+'<p class="muted">この日に施術した患者はいません。施術入力タブで日付を選ぶと、ここに並びます。</p>';
+    return;
+  }
+  let jSum=0, tSum=0;
+  let rows='';
+  list.forEach((p,i)=>{
+    const rec=getRecord(p.id,ym);
+    const on=rec.dates.includes(day);
+    const r=dayTotal(p,ym,day);
+    const juts=r.sum-r.ted;
+    jSum+=juts; tSum+=r.ted;
+    let kubunCell;
+    if(hasKubun(p.ins) && on){
+      const k=kubunOf(rec,day,p);
+      kubunCell='<select onchange="hjSetKubun(\''+p.id+'\',this.value)" style="padding:4px;border:1px solid #c4ced8;border-radius:6px">'
+        +KUBUN_CODES.map(code=>'<option value="'+code+'"'+(k===code?' selected':'')+'>'+KUBUN_LABEL[code]+'</option>').join('')
+        +'</select>';
+    } else if(on){
+      kubunCell='<span class="muted">'+esc(insLabel(p.ins))+'</span>';
+    } else {
+      kubunCell='<span class="muted">施術なし</span>';
+    }
+    const sk=HJ_SEIKYU[p.ins];
+    const btn=sk
+      ? '<button class="btn sm primary" onclick="hjSeikyu(\''+p.id+'\')">請求書を作る</button><div class="hint" style="margin-top:2px">'+sk[2]+'</div>'
+      : '<span class="muted">個人別様式なし</span>';
+    rows+=`<tr>
+      <td class="ctr">${i+1}</td>
+      <td><b>${esc(p.name)}</b></td>
+      <td class="ctr"><span class="tag ${INS_CLASS[p.ins]||'seiho'}">${esc(p.ins)}</span></td>
+      <td class="ctr">${kubunCell}</td>
+      <td class="num">${yen(juts)}</td>
+      <td class="num"><input type="number" min="0" step="1" value="${r.ted||''}" placeholder="0"
+        onchange="hjSetTedashi('${p.id}',this.value)" style="width:86px;text-align:right;padding:3px 4px;border:1px solid #cdd8e2;border-radius:6px"></td>
+      <td class="num"><b>${yen(r.sum)}</b></td>
+      <td class="ctr"><button class="btn sm" onclick="hjOpenNyuryoku('${p.id}')">施術入力へ</button></td>
+      <td class="ctr">${btn}</td>
+    </tr>`;
+  });
+  box.innerHTML=head
+    +'<table class="grid"><thead><tr><th class="ctr">#</th><th>患者名</th><th class="ctr">種別</th>'
+    +'<th class="ctr">この日の区分</th><th class="num">施術料</th><th class="num">手出し</th><th class="num">この日の合計</th>'
+    +'<th class="ctr">記録</th><th class="ctr">請求</th></tr></thead><tbody>'+rows+'</tbody>'
+    +`<tfoot><tr style="font-weight:700;background:#f2f6fa">
+        <td colspan="4" class="ctr">この日の合計（${list.length}名）</td>
+        <td class="num">${yen(jSum)}</td><td class="num">${yen(tSum)}</td>
+        <td class="num">${yen(jSum+tSum)}</td><td colspan="2"></td></tr></tfoot></table>`
+    +'<div class="row" style="gap:8px;margin-top:12px;flex-wrap:wrap">'
+    +'<button class="btn primary" onclick="hjSeikyuAll()">この日の全員分の請求書をまとめて作る</button>'
+    +'</div>';
+}
+function hjSetKubun(pid, code){
+  const dv=document.getElementById('hjDate').value; if(!dv) return;
+  const ym=dv.slice(0,7), day=Number(dv.slice(8,10));
+  const rec=ensureRecord(pid, ym);
+  if(!rec.kubun) rec.kubun={};
+  rec.kubun[day]=code;
+  save(); renderHonjitsu();
+}
+function hjSetTedashi(pid, v){
+  const dv=document.getElementById('hjDate').value; if(!dv) return;
+  const ym=dv.slice(0,7), day=Number(dv.slice(8,10));
+  const rec=ensureRecord(pid, ym);
+  if(!rec.tedashiDays) rec.tedashiDays={};
+  if(v==='' || Number(v)===0){ delete rec.tedashiDays[day]; }
+  else { rec.tedashiDays[day]=Math.max(0, Number(v)||0); }
+  save(); renderHonjitsu();
+}
+function hjOpenNyuryoku(pid){
+  const dv=document.getElementById('hjDate').value||'';
+  goTab('nyuryoku');
+  const m=document.getElementById('nyMonth'); if(m && dv) m.value=dv.slice(0,7);
+  fillPatientSelect();
+  const sel=document.getElementById('nyPatient'); if(sel) sel.value=pid;
+  loadRecord();
+}
+/* 患者1人分の請求書を、その種別の様式に自動でつないで作成する */
+function hjSeikyu(pid, quiet){
+  const p=DB.patients.find(x=>x.id===pid); if(!p) return false;
+  const dv=document.getElementById('hjDate').value; if(!dv) return false;
+  const ym=dv.slice(0,7);
+  const sk=HJ_SEIKYU[p.ins];
+  if(!sk){ if(!quiet) toast(p.ins+'は個人別の請求様式がありません（集計表・総括票をご利用ください）'); return false; }
+  const fn=window[sk[1]];
+  if(typeof fn!=='function'){ if(!quiet) toast('請求書の作成機能が見つかりません'); return false; }
+  const mEl=document.getElementById('meisaiMonth');
+  if(mEl){ mEl.value=ym; renderMeisaiPanel(); }        // 先に月をそろえてから患者を選ぶ
+  const sel=document.getElementById(sk[0]); if(sel) sel.value=pid;
+  try{ fn(ym); }catch(e){ if(!quiet) toast(p.name+'：請求書の作成に失敗しました'); return false; }
+  return true;
+}
+/* その日の全員分をまとめて作成 */
+function hjSeikyuAll(){
+  const dv=document.getElementById('hjDate').value; if(!dv) return;
+  const ym=dv.slice(0,7), day=Number(dv.slice(8,10));
+  const list=hjPatients(ym, day).filter(p=>HJ_SEIKYU[p.ins]);
+  if(!list.length){ toast('個人別の請求様式がある患者がいません'); return; }
+  if(!confirm(list.length+'名分の請求書ファイルをまとめてダウンロードします。よろしいですか？')) return;
+  let ok=0;
+  list.forEach((p,i)=>{ setTimeout(()=>{
+    if(hjSeikyu(p.id, true)) ok++;
+    if(i===list.length-1) setTimeout(()=>toast(ok+'名分の請求書を作成しました'), 400);
+  }, i*700); });
 }
 
 /* ============================================================
@@ -1176,7 +1385,7 @@ function sheetRyoyo6(p, ym){
   const cl=DB.settings.clinic, bk=DB.settings.bank;
   const [yy,mm]=ym.split('-').map(Number);
   const dim=daysInMonth(ym);
-  const edates=effRyoyoDates(p,ym);   // 国保は療養費(+セット)の日のみ、他は全日
+  const edates=effRyoyoDates(p,ym);   // 日ごと区分がある種別は「療」を含む日のみ、他は全日
   const firstDay=edates.length?Math.min(...edates):'';
   const grid=dayGrid(edates,ym);
   const give=10-(p.burden||0); // 給付割合(割)
