@@ -47,13 +47,21 @@ if defined INZIP (
   exit /b 1
 )
 
-rem ---- 同じフォルダにある本体HTMLを探す ----------------------
-rem  候補が複数あるときは「更新日時が最も新しいもの」を選ぶ
-set "HTMLNAME="
-for /f "delims=" %%F in ('dir /b /a-d /o-d "%SRCDIR%\Anna_AI*.html" 2^>nul') do if not defined HTMLNAME set "HTMLNAME=%%F"
-if not defined HTMLNAME for /f "delims=" %%F in ('dir /b /a-d /o-d "%SRCDIR%\*.html" 2^>nul') do if not defined HTMLNAME set "HTMLNAME=%%F"
+rem ---- 本体HTMLを探す ----------------------------------------
+rem  (1) 自分と同じフォルダ  (2) ひとつ上のフォルダ  (3) すぐ下のフォルダ
+rem  の順に探す。候補が複数あるときは更新日時が最も新しいものを選ぶ。
+set "HTMLPATH="
+call :FIND_HTML "%SRCDIR%"
+if not defined HTMLPATH call :FIND_HTML "%SRCDIR%\.."
+if not defined HTMLPATH for /d %%D in ("%SRCDIR%\*") do if not defined HTMLPATH call :FIND_HTML "%%~fD"
 
-if not defined HTMLNAME (
+if defined HTMLPATH (
+  for %%F in ("%HTMLPATH%") do set "HTMLNAME=%%~nxF"
+  for %%F in ("%HTMLPATH%") do set "HTMLDIR=%%~dpF"
+)
+if defined HTMLDIR if "%HTMLDIR:~-1%"=="\" set "HTMLDIR=%HTMLDIR:~0,-1%"
+
+if not defined HTMLPATH (
   echo 結果     : HTMLが見つからない >> "%LOG%"
   echo   [エラー] このファイルと同じフォルダに本体の HTML が見つかりません。
   echo.
@@ -67,12 +75,11 @@ if not defined HTMLNAME (
 set "APPDIR=%LOCALAPPDATA%\Anna_AI"
 set "ICONNAME=annafolder.ico"
 set "ICOPATH=%APPDIR%\%ICONNAME%"
-set "HTMLPATH=%SRCDIR%\%HTMLNAME%"
 set "LNKNAME=Anna AI支援記録Pro.lnk"
 set "LNKDESC=Anna AI支援記録Pro"
 
 echo   本体ファイル : %HTMLNAME%
-echo   保存場所     : %SRCDIR%
+echo   保存場所     : %HTMLDIR%
 echo.
 echo   このファイルのショートカットをデスクトップに作成します。
 echo   よろしければ何かキーを押してください。
@@ -94,7 +101,7 @@ if exist "%SRCDIR%\%ICONNAME%" (
   if exist "%ICOPATH%" set "ICONOK=1"
 )
 
-echo 本体HTML : %HTMLNAME% >> "%LOG%"
+echo 本体HTML : %HTMLPATH% >> "%LOG%"
 if defined ICONOK (echo アイコン : 準備OK ^(%ICOPATH%^) >> "%LOG%") else (echo アイコン : 準備できず >> "%LOG%")
 
 rem ---- ショートカットを作成する ------------------------------
@@ -104,7 +111,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
  "$p = Join-Path ([Environment]::GetFolderPath('Desktop')) $env:LNKNAME;" ^
  "$s = $w.CreateShortcut($p);" ^
  "$s.TargetPath = $env:HTMLPATH;" ^
- "$s.WorkingDirectory = $env:SRCDIR;" ^
+ "$s.WorkingDirectory = $env:HTMLDIR;" ^
  "$s.Description = $env:LNKDESC;" ^
  "if (Test-Path -LiteralPath $env:ICOPATH) { $s.IconLocation = $env:ICOPATH + ',0' };" ^
  "$s.Save();" ^
@@ -144,6 +151,15 @@ echo      移動先で、このファイルをもう一度実行してください。
 echo.
 pause
 endlocal
+exit /b 0
+
+rem ============================================================
+rem  指定フォルダから本体HTMLを探す（見つかれば HTMLPATH に入る）
+rem ============================================================
+:FIND_HTML
+if not exist "%~1\" exit /b 0
+for /f "delims=" %%F in ('dir /b /a-d /o-d "%~1\Anna_AI*.html" 2^>nul') do if not defined HTMLPATH set "HTMLPATH=%~f1\%%F"
+if not defined HTMLPATH for /f "delims=" %%F in ('dir /b /a-d /o-d "%~1\*.html" 2^>nul') do if not defined HTMLPATH set "HTMLPATH=%~f1\%%F"
 exit /b 0
 
 rem ============================================================
