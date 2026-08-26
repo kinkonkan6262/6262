@@ -51,9 +51,24 @@ rem ---- 本体HTMLを探す ----------------------------------------
 rem  (1) 自分と同じフォルダ  (2) ひとつ上のフォルダ  (3) すぐ下のフォルダ
 rem  の順に探す。候補が複数あるときは更新日時が最も新しいものを選ぶ。
 set "HTMLPATH="
-call :FIND_HTML "%SRCDIR%"
+
+rem  (0) このファイルの上に本体HTMLをドラッグ＆ドロップされた場合
+set "DROP=%~1"
+if defined DROP if exist "%DROP%" (
+  for %%F in ("%DROP%") do if /i "%%~xF"==".html" set "HTMLPATH=%%~fF"
+  for %%F in ("%DROP%") do if /i "%%~xF"==".htm"  set "HTMLPATH=%%~fF"
+)
+
+if not defined HTMLPATH call :FIND_HTML "%SRCDIR%"
 if not defined HTMLPATH call :FIND_HTML "%SRCDIR%\.."
 if not defined HTMLPATH for /d %%D in ("%SRCDIR%\*") do if not defined HTMLPATH call :FIND_HTML "%%~fD"
+rem  さらに広く探す（こちらは Anna_AI で始まるファイルだけを対象にする）
+if not defined HTMLPATH call :FIND_ANNA "%SRCDIR%\..\.."
+if not defined HTMLPATH call :FIND_ANNA "%USERPROFILE%\Desktop"
+if not defined HTMLPATH call :FIND_ANNA "%USERPROFILE%\OneDrive\デスクトップ"
+if not defined HTMLPATH call :FIND_ANNA "%USERPROFILE%\OneDrive\Desktop"
+if not defined HTMLPATH call :FIND_ANNA "%USERPROFILE%\Downloads"
+if not defined HTMLPATH call :FIND_ANNA "%USERPROFILE%\Documents"
 
 if defined HTMLPATH (
   for %%F in ("%HTMLPATH%") do set "HTMLNAME=%%~nxF"
@@ -63,10 +78,24 @@ if defined HTMLDIR if "%HTMLDIR:~-1%"=="\" set "HTMLDIR=%HTMLDIR:~0,-1%"
 
 if not defined HTMLPATH (
   echo 結果     : HTMLが見つからない >> "%LOG%"
-  echo   [エラー] このファイルと同じフォルダに本体の HTML が見つかりません。
+  echo   [エラー] ソフト本体 ^(HTMLファイル^) が見つかりませんでした。
   echo.
-  echo   本体の HTML ファイルと、このファイルを同じフォルダに入れてから
-  echo   もう一度実行してください。
+  echo   ---------------------------------------------------------
+  echo    このファイルがある場所
+  echo      %SRCDIR%
+  echo   ---------------------------------------------------------
+  echo.
+  echo   次のどちらかの方法で解決できます。
+  echo.
+  echo   【方法1】かんたんな方法（おすすめ）
+  echo     ソフト本体の HTML ファイルを、マウスでつかんで
+  echo     この「ショートカット作成」の上に落として（ドロップして）
+  echo     ください。それだけで作成できます。
+  echo.
+  echo   【方法2】
+  echo     ソフト本体の HTML ファイルを、上に表示されている
+  echo     フォルダの中にコピーしてから、もう一度
+  echo     このファイルをダブルクリックしてください。
   echo.
   pause
   exit /b 1
@@ -160,6 +189,14 @@ rem ============================================================
 if not exist "%~1\" exit /b 0
 for /f "delims=" %%F in ('dir /b /a-d /o-d "%~1\Anna_AI*.html" 2^>nul') do if not defined HTMLPATH set "HTMLPATH=%~f1\%%F"
 if not defined HTMLPATH for /f "delims=" %%F in ('dir /b /a-d /o-d "%~1\*.html" 2^>nul') do if not defined HTMLPATH set "HTMLPATH=%~f1\%%F"
+exit /b 0
+
+rem ============================================================
+rem  指定フォルダから Anna_AI で始まる HTML だけを探す
+rem ============================================================
+:FIND_ANNA
+if not exist "%~1\" exit /b 0
+for /f "delims=" %%F in ('dir /b /a-d /o-d "%~1\Anna_AI*.html" 2^>nul') do if not defined HTMLPATH set "HTMLPATH=%~f1\%%F"
 exit /b 0
 
 rem ============================================================
