@@ -580,10 +580,10 @@ function calc(p, ym){
    ・既定は療養費（r）。利用券のみ(t) / セット(b) に切替可
    ・療養費の金額計算は r・b の日だけで行う（t の日は療養費から除外）
    ・利用券の日数は t・b（セット日は両方に計上）
-   手出し（自己負担分）は 国保・後期・利用証一般・利用証後期 で手入力可
+   手出し（自己負担分）は 社保・国保・後期・生保・利用証一般・利用証後期 で手入力可
    ------------------------------------------------------------ */
 const KUBUN_LABEL = {r:'療養費', t:'利用券', b:'療養費＋利用券'};
-const TEDASHI_TYPES = ['国保','後期','利用証一般','利用証後期'];
+const TEDASHI_TYPES = ['社保','国保','後期','生保','利用証一般','利用証後期'];
 function kubunOf(rec, d){ return (rec && rec.kubun && rec.kubun[d]) || 'r'; }
 function ryoyoDates(rec, p){
   if(!rec) return [];
@@ -871,7 +871,7 @@ function renderKubunSummary(p, ym){
     base = c.seikyu + tAmt;
   } else {
     const c=calc(p,ym);
-    rows.push([c.label, c.count+(isRyoyo(p.ins)?'回':'日'), c.seikyu]);
+    rows.push([c.label, c.count+((isRyoyo(p.ins)||p.ins==='生保')?'回':'日'), c.seikyu]);
     base = c.seikyu;
   }
   const ted = tedashiSum(rec);
