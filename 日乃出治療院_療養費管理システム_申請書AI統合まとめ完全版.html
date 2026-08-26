@@ -226,10 +226,15 @@ table.grid td.ctr,table.grid th.ctr{text-align:center;}
   <!-- ============ 施術入力 ============ -->
   <section class="view" id="view-nyuryoku">
     <div class="panel">
-      <div class="row" style="margin-bottom:10px;">
+      <div class="row" style="margin-bottom:4px;align-items:flex-end;gap:10px;flex-wrap:wrap">
         <div class="field"><label>対象年月</label>
           <input type="month" id="nyMonth" onchange="renderNyuryoku()"></div>
-        <div class="field grow"><label>患者を選択</label>
+        <div class="field grow"><label>氏名・カナで検索</label>
+          <input type="search" id="nySearch" placeholder="例：岡田／おかだ／オカダ" oninput="nySearchChanged()"></div>
+        <button class="btn" onclick="nySearchClear()">クリア</button>
+      </div>
+      <div class="row" style="margin-bottom:10px;">
+        <div class="field grow"><label>患者を選択 <span id="nySearchHint" class="hint" style="font-weight:400"></span></label>
           <select id="nyPatient" onchange="loadRecord()"></select></div>
       </div>
       <div id="nyArea" class="muted">患者を選んでください。</div>
@@ -781,12 +786,47 @@ document.getElementById('modalBg').onclick=e=>{ if(e.target.id==='modalBg') clos
 /* ============================================================
    施術入力（カレンダーで施術日を指定 → 自動計算）
    ============================================================ */
+/* 検索用の正規化：半角カナ→全角カナ、ひらがな→カタカナ、全角英数→半角、空白除去。
+   「おかだ」「オカダ」「ｵｶﾀﾞ」のどれでも同じ患者に当たるようにする */
+const HANKANA='\uFF66\uFF67\uFF68\uFF69\uFF6A\uFF6B\uFF6C\uFF6D\uFF6E\uFF6F\uFF70\uFF71\uFF72\uFF73\uFF74\uFF75\uFF76\uFF77\uFF78\uFF79\uFF7A\uFF7B\uFF7C\uFF7D\uFF7E\uFF7F\uFF80\uFF81\uFF82\uFF83\uFF84\uFF85\uFF86\uFF87\uFF88\uFF89\uFF8A\uFF8B\uFF8C\uFF8D\uFF8E\uFF8F\uFF90\uFF91\uFF92\uFF93\uFF94\uFF95\uFF96\uFF97\uFF98\uFF99\uFF9A\uFF9B\uFF9C\uFF9D';
+const ZENKANA='ヲァィゥェォャュョッーアイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワン';
+function kanaNorm(s){
+  let t=(s==null?'':String(s));
+  t=t.replace(/([\uFF76-\uFF84\uFF8A-\uFF8E])\uFF9E/g,(m,c)=>String.fromCharCode(ZENKANA.charCodeAt(HANKANA.indexOf(c))+1)); // ｶﾞ→ガ
+  t=t.replace(/([\uFF8A-\uFF8E])\uFF9F/g,(m,c)=>String.fromCharCode(ZENKANA.charCodeAt(HANKANA.indexOf(c))+2));                 // ﾊﾟ→パ
+  t=t.replace(/[\uFF66-\uFF9D]/g,c=>ZENKANA.charAt(HANKANA.indexOf(c)));                                                          // ｱ→ア
+  return t
+    .replace(/[ぁ-ゖ]/g, c=>String.fromCharCode(c.charCodeAt(0)+0x60))
+    .replace(/[Ａ-Ｚａ-ｚ０-９]/g, c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0))
+    .replace(/[\s\u3000・]/g,'').toUpperCase();
+}
+function patientMatch(p, q){
+  return kanaNorm((p.name||'')+(p.kana||'')+(p.ins||'')+(p.hospital||'')).indexOf(q)>=0;
+}
 function fillPatientSelect(){
   const sel=document.getElementById('nyPatient'); if(!sel) return;
   const cur=sel.value;
+  const qEl=document.getElementById('nySearch');
+  const q=kanaNorm(qEl?qEl.value:'');
+  const matched = q ? DB.patients.filter(p=>patientMatch(p,q)) : DB.patients.slice();
+  // 1名だけに絞れたら自動で選ぶ
+  const keep = (q && matched.length===1) ? matched[0].id : cur;
+  // 選択中の患者は、検索に当たらなくても消えないように残す
+  let list=matched;
+  if(keep && !matched.some(p=>p.id===keep)){
+    const c=DB.patients.find(p=>p.id===keep);
+    if(c) list=matched.concat([c]);
+  }
   sel.innerHTML='<option value="">－ 患者を選択 －</option>'+
-    DB.patients.map(p=>`<option value="${p.id}">${esc(p.name)}（${p.ins}）</option>`).join('');
-  if(cur) sel.value=cur;
+    list.map(p=>`<option value="${p.id}">${esc(p.name)}${p.kana?'　'+esc(p.kana):''}（${p.ins}）</option>`).join('');
+  if(keep) sel.value=keep;
+  const hint=document.getElementById('nySearchHint');
+  if(hint) hint.textContent = q ? `（該当 ${matched.length}名 / 全${DB.patients.length}名）` : `（全${DB.patients.length}名）`;
+}
+function nySearchChanged(){ fillPatientSelect(); loadRecord(); }
+function nySearchClear(){
+  const q=document.getElementById('nySearch'); if(q) q.value='';
+  fillPatientSelect(); loadRecord();
 }
 function renderNyuryoku(){
   const mEl=document.getElementById('nyMonth');
@@ -1111,6 +1151,8 @@ function hjOpenNyuryoku(pid){
   const dv=document.getElementById('hjDate').value||'';
   goTab('nyuryoku');
   const m=document.getElementById('nyMonth'); if(m && dv) m.value=dv.slice(0,7);
+  const q=document.getElementById('nySearch'); if(q) q.value='';   // 検索の絞り込みを解除
+  const sel0=document.getElementById('nyPatient'); if(sel0) sel0.value=pid;
   fillPatientSelect();
   const sel=document.getElementById('nyPatient'); if(sel) sel.value=pid;
   loadRecord();
