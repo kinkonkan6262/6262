@@ -413,7 +413,15 @@ const DEFAULT_SETTINGS = {
   }
 };
 
+/* 名簿はいつも保険種別の順に並べる（同じ種別の中の並び順はそのまま保つ） */
+const INS_ORDER = ['社保','国保','後期','共済','生保','利用証一般','利用証後期','後期助成後'];
+function insOrder(ins){ const i=INS_ORDER.indexOf(ins); return i<0 ? INS_ORDER.length : i; }
+function sortPatientsByIns(){
+  if(DB && Array.isArray(DB.patients)) DB.patients.sort((a,b)=>insOrder(a.ins)-insOrder(b.ins));
+}
+
 let DB = load();
+sortPatientsByIns();   // 保存済みデータを開いたときも保険種別順にそろえる
 
 function load(){
   try{
@@ -428,7 +436,7 @@ function load(){
   }catch(e){ console.warn(e); }
   return seed();
 }
-function save(){ localStorage.setItem(LS_KEY, JSON.stringify(DB)); }
+function save(){ sortPatientsByIns(); localStorage.setItem(LS_KEY, JSON.stringify(DB)); }
 
 /* ---------- ユーティリティ ---------- */
 let _id = Date.now();
