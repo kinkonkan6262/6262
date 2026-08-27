@@ -2696,8 +2696,12 @@ function linkExcelKoukiGo(ym){
   xml=_setXlsxCellText(xml,'N18','（'+cnt+'）回');
   xml=_setXlsxCellText(xml,'AJ18','＝（'+_yen(amt)+'）円');
   xml=_setXlsxCellText(xml,'AJ20','施術料負担金請求額（'+_yen(amt)+'）円');
-  xml=_setXlsxCellText(xml,'K23','有  ・  無');
-  _hinodeAddOvalPartial(o.files,'K23','N23',0.78,1.0); // その他施術の請求：本システムでは扱わないため既定で「無」
+  // 療養費請求の有無：この患者に「療（療養費）」の施術日があれば「有」、なければ「無」。
+  // 結合セルの中に楕円を描くと位置がずれるため、選んだ方を赤の太字＋下線で示す
+  var ryoDates=_hinodePatientDates(p,ym,'ryoyo'), hasRyo=ryoDates.length>0;
+  xml=_setXlsxCellHighlight(xml,'K23','有  ・  無', hasRyo?'有':'無');
+  // 「有」のときは、様式の記入上の注意どおり「はり・きゅう」欄の施術日に○を付ける
+  if(hasRyo) _hinodeMarkHariKyuDays(o.files, ryoDates);
   _hinodeXlsxSave(o.files,xml,'⑧後期高齢（後）明細書_'+p.name+'_記入済み.xlsx');
   toast('⑧'+p.name+'　後期(後)明細書Excel出力（'+cnt+'回 '+_yen(amt)+'円）'+_hinodeMissing(p,['addr','birth','kofuNo','symbol']));
 }
@@ -2731,8 +2735,12 @@ function linkExcelRiyouIppan(ym){
   xml=_setXlsxCellText(xml,'N18','（'+cnt+'）回');
   xml=_setXlsxCellText(xml,'AJ18','＝（'+_yen(amt)+'）円');
   xml=_setXlsxCellText(xml,'AJ20','施術料負担金請求額（'+_yen(amt)+'）円');
-  xml=_setXlsxCellText(xml,'K23','有  ・  無');
-  _hinodeAddOvalPartial(o.files,'K23','N23',0.78,1.0); // その他施術の請求：本システムでは扱わないため既定で「無」
+  // 療養費請求の有無：この患者に「療（療養費）」の施術日があれば「有」、なければ「無」。
+  // 結合セルの中に楕円を描くと位置がずれるため、選んだ方を赤の太字＋下線で示す
+  var ryoDates=_hinodePatientDates(p,ym,'ryoyo'), hasRyo=ryoDates.length>0;
+  xml=_setXlsxCellHighlight(xml,'K23','有  ・  無', hasRyo?'有':'無');
+  // 「有」のときは、様式の記入上の注意どおり「はり・きゅう」欄の施術日に○を付ける
+  if(hasRyo) _hinodeMarkHariKyuDays(o.files, ryoDates);
   _hinodeXlsxSave(o.files,xml,'⑨利用券一般明細書_'+p.name+'_記入済み.xlsx');
   toast('⑨'+p.name+'　利用券一般明細書Excel出力（'+cnt+'回 '+_yen(amt)+'円）'+_hinodeMissing(p,['addr','birth','kofuNo']));
 }
@@ -2782,6 +2790,22 @@ function _hinodeAddOval(files, ref, ref2){
   xml = xml.replace('</xdr:wsDr>', _hinodeOvalShapeXml(ref, ref2) + '</xdr:wsDr>');
   files[path] = _strToU8(xml);
 }
+/* 行・列の番号を直接指定して楕円を描く（単独セルなので位置がずれない） */
+function _hinodeAddOvalRC(files, c1, r1, c2, r2){
+  var path='xl/drawings/drawing1.xml';
+  if(!files[path]) return;
+  var xml=_u8ToStr(files[path]);
+  xml=xml.replace('</xdr:wsDr>', _hinodeOvalShapeXmlRC(c1,r1,c2,r2)+'</xdr:wsDr>');
+  files[path]=_strToU8(xml);
+}
+/* 様式第12号「はり・きゅう」欄（31行目 G列＝1日 … AK列＝31日）の該当日に○を付ける */
+function _hinodeMarkHariKyuDays(files, days){
+  (days||[]).forEach(function(d){
+    var n=Number(d); if(!(n>=1 && n<=31)) return;
+    var c=6+(n-1);                    // G列（0起点で6）＝1日
+    _hinodeAddOvalRC(files, c, 30, c+1, 31);   // 31行目（0起点で30）
+  });
+}
 function _hinodeOvalShapeXmlRC(c1,r1,c2,r2){
   var id = ++_hinodeOvalSeq;
   return '<xdr:twoCellAnchor>'+
@@ -2808,6 +2832,7 @@ function _hinodeAddOvalPartial(files, mergeFromRef, mergeToRef, fracStart, fracE
 }
 /* セルごとの実際のフォント（テンプレート原本を基に指定。Excelで確実に赤字反映させるため） */
 var _hinodeCellFont = {
+  K23:{n:'ＭＳ 明朝',s:10},
   DO67:{n:'ＭＳ 明朝',s:10}, DO77:{n:'ＭＳ 明朝',s:10}, CJ47:{n:'ＭＳ 明朝',s:7},
   J177:{n:'ＭＳ 明朝',s:10}, BW87:{n:'游ゴシック',s:9}, CT87:{n:'游ゴシック',s:9},
   DR236:{n:'ＭＳ 明朝',s:9}, EO239:{n:'ＭＳ 明朝',s:9}, BD239:{n:'ＭＳ 明朝',s:9}, BS239:{n:'ＭＳ 明朝',s:9},
