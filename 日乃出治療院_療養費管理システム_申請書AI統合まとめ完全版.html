@@ -210,6 +210,7 @@ table.grid td.ctr,table.grid th.ctr{text-align:center;}
         </select>
         <span class="muted" id="meiboCount"></span>
       </div>
+      <div id="dupPanel"></div>
       <div class="scroll">
         <table class="grid" id="meiboTable">
           <thead><tr>
@@ -620,13 +621,38 @@ function calc(p, ym){
    ------------------------------------------------------------ */
 const KUBUN_LABEL = {r:'療', t:'前券', k:'後券', b:'療＋前券', c:'療＋後券'};
 const KUBUN_CODES = ['r','t','k','b','c'];
-const KUBUN_TYPES = ['国保','後期','利用証一般','利用証後期'];
+const KUBUN_TYPES = ['社保','国保','後期','共済','利用証一般','利用証後期'];
 const TEDASHI_TYPES = ['社保','国保','後期','共済','生保','利用証一般','利用証後期'];
 function hasKubun(ins){ return KUBUN_TYPES.includes(ins); }
 function defaultKubun(ins){
   if(ins==='利用証一般') return 't';
-  if(ins==='利用証後期') return 'k';
+  if(ins==='利用証後期'||ins==='後期助成後') return 'k';
   return 'r';
+}
+/* 区分コード ⇔ 内訳（療 / 前券 / 後券）の相互変換。統合のときに合成するため */
+function kubunComponents(code){
+  return { ryo: code==='r'||code==='b'||code==='c',
+           ippan: code==='t'||code==='b',
+           kouki: code==='k'||code==='c' };
+}
+function componentsToKubun(c){
+  if(c.ryo && c.ippan) return 'b';
+  if(c.ryo && c.kouki) return 'c';
+  if(c.ryo) return 'r';
+  if(c.ippan) return 't';
+  if(c.kouki) return 'k';
+  return 'r';
+}
+/* 券種ごとの施術日（レコードから直接） */
+function kindDates(rec, p, kind){
+  if(kind==='ryoyo') return ryoyoDates(rec,p);
+  if(kind==='ippan') return ippanDates(rec,p);
+  if(kind==='kouki') return koukiDates(rec,p);
+  return rec? rec.dates.slice() : [];
+}
+/* その患者が、どこかの月に その券種の施術日を持っているか */
+function hasKindAny(p, kind){
+  return DB.records.some(function(r){ return r.patientId===p.id && kindDates(r,p,kind).length>0; });
 }
 function kubunOf(rec, d, p){
   const k = rec && rec.kubun && rec.kubun[d];
@@ -686,6 +712,7 @@ function goTab(name){
    患者名簿
    ============================================================ */
 function renderMeibo(){
+  renderDupPanel();
   const q=(document.getElementById('meiboSearch').value||'').trim();
   const f=document.getElementById('meiboFilter').value;
   const body=document.getElementById('meiboBody'); body.innerHTML='';
@@ -712,6 +739,106 @@ function renderMeibo(){
       </td>`;
     body.appendChild(tr);
   });
+}
+
+/* ============================================================
+   同一人物のリンク（氏名が同じで保険種別が違う患者を1人にまとめる）
+   例：「後期（療養費）」と「利用証後期（後券）」で二重登録されている場合、
+       1人にまとめて、施術日ごとの区分（療／後券／療＋後券）で振り分ける
+   ============================================================ */
+function dupKey(p){ return kanaNorm(p.name) || kanaNorm(p.kana); }
+function dupIgnoreList(){ if(!DB.settings.dupIgnore) DB.settings.dupIgnore=[]; return DB.settings.dupIgnore; }
+function dupGroups(){
+  const map={};
+  DB.patients.forEach(p=>{ const k=dupKey(p); if(!k) return; (map[k]=map[k]||[]).push(p); });
+  const ig=dupIgnoreList();
+  return Object.keys(map).filter(k=>map[k].length>1 && ig.indexOf(k)<0).map(k=>({key:k, list:map[k]}));
+}
+function patientDayCount(id){ return DB.records.filter(r=>r.patientId===id).reduce((n,r)=>n+r.dates.length,0); }
+function renderDupPanel(){
+  const box=document.getElementById('dupPanel'); if(!box) return;
+  const gs=dupGroups();
+  if(!gs.length){ box.innerHTML=''; return; }
+  let html='<div class="panel" style="margin:0 0 12px;border:2px solid #e0a800;background:#fffdf3">'
+    +'<div style="font-weight:700;color:#8a6100;margin-bottom:4px">同じ氏名の患者が複数登録されています</div>'
+    +'<p class="hint" style="margin:0 0 10px">同一人物なら「1人にまとめる」を押してください。施術記録は合体し、施術日ごとの区分（療／前券／後券／療＋前券／療＋後券）に自動で振り分けます。別人ならそのままで構いません。</p>';
+  gs.forEach(g=>{
+    html+='<div style="border-top:1px solid #eadfae;padding:8px 0">'
+      +`<div style="font-weight:700;margin-bottom:4px">${esc(g.list[0].name)}</div>`
+      +'<table style="border-collapse:collapse;font-size:13px;margin-bottom:6px">';
+    g.list.forEach(p=>{
+      html+=`<tr><td style="padding:1px 10px 1px 0"><span class="tag ${INS_CLASS[p.ins]||'seiho'}">${esc(p.ins)}</span></td>`
+        +`<td class="muted" style="padding:1px 10px 1px 0">${esc(p.kana||'カナ未入力')}</td>`
+        +`<td class="muted" style="padding:1px 10px 1px 0">記号番号 ${esc(p.symbol||p.insNo||'－')}</td>`
+        +`<td class="muted" style="padding:1px 10px 1px 0">生年月日 ${esc(p.birth||'－')}</td>`
+        +`<td class="muted" style="padding:1px 0">施術 ${patientDayCount(p.id)}日</td></tr>`;
+    });
+    html+='</table><div class="row" style="gap:8px">'
+      +`<button class="btn primary sm" onclick="mergeDupGroup('${esc(g.key)}')">1人にまとめる</button>`
+      +`<button class="btn sm" onclick="ignoreDup('${esc(g.key)}')">別人なので表示しない</button>`
+      +'</div></div>';
+  });
+  html+='</div>';
+  box.innerHTML=html;
+}
+function ignoreDup(key){ dupIgnoreList().push(key); save(); renderMeibo(); toast('候補から外しました'); }
+function mergeDupGroup(key){
+  const g=dupGroups().find(x=>x.key===key); if(!g) return;
+  const main=pickMainPatient(g.list);
+  const subs=g.list.filter(p=>p!==main);
+  const msg='「'+main.name+'」を1人にまとめます。\n\n'
+    +'残る登録：'+main.ins+'\n'
+    +'まとめる登録：'+subs.map(p=>p.ins+'（施術 '+patientDayCount(p.id)+'日）').join('、')+'\n\n'
+    +'・施術記録は合体し、両方にある日は「療＋前券／療＋後券」になります\n'
+    +'・手出しは合算されます\n'
+    +'・空欄の項目（住所・生年月日など）はもう一方の値で補います\n\n'
+    +'よろしいですか？（元に戻せません。心配なときは先に「バックアップ保存」を）';
+  if(!confirm(msg)) return;
+  mergePatients(g.list.map(p=>p.id));
+  renderMeibo(); fillPatientSelect(); renderMeisaiPanel();
+  toast(main.name+'　を1人にまとめました');
+}
+/* 主にする登録を決める：日ごと区分が使える療養費系を優先 → 療養費系 → 先に登録された方 */
+function pickMainPatient(list){
+  return list.find(p=>isRyoyo(p.ins) && hasKubun(p.ins))
+      || list.find(p=>isRyoyo(p.ins))
+      || list.find(p=>hasKubun(p.ins))
+      || list[0];
+}
+function mergePatients(ids){
+  const ps=ids.map(id=>DB.patients.find(p=>p.id===id)).filter(Boolean);
+  if(ps.length<2) return;
+  const main=pickMainPatient(ps);
+  const subs=ps.filter(p=>p!==main);
+  subs.forEach(sub=>{
+    // 空欄の項目を補う
+    Object.keys(sub).forEach(k=>{
+      if(k==='id') return;
+      if((main[k]===undefined || main[k]===null || main[k]==='') && sub[k]) main[k]=sub[k];
+    });
+    // 施術記録を合体
+    DB.records.filter(r=>r.patientId===sub.id).forEach(sr=>{
+      let m=DB.records.find(x=>x.patientId===main.id && x.ym===sr.ym);
+      if(!m){ m={patientId:main.id, ym:sr.ym, dates:[], shoken:false, kubun:{}, tedashiDays:{}}; DB.records.push(m); }
+      if(!m.kubun) m.kubun={};
+      if(!m.tedashiDays) m.tedashiDays={};
+      sr.dates.forEach(d=>{
+        const had=m.dates.includes(d);
+        const a=had ? kubunComponents(kubunOf(m,d,main)) : {ryo:false,ippan:false,kouki:false};
+        const b=kubunComponents(kubunOf(sr,d,sub));
+        if(!had) m.dates.push(d);
+        m.kubun[d]=componentsToKubun({ryo:a.ryo||b.ryo, ippan:a.ippan||b.ippan, kouki:a.kouki||b.kouki});
+      });
+      m.dates.sort((x,y)=>x-y);
+      m.shoken = m.shoken || !!sr.shoken;
+      if(sr.tedashiDays){ for(const d in sr.tedashiDays){
+        m.tedashiDays[d]=(Number(m.tedashiDays[d])||0)+(Number(sr.tedashiDays[d])||0);
+      } }
+    });
+    DB.records=DB.records.filter(r=>r.patientId!==sub.id);
+    DB.patients=DB.patients.filter(p=>p.id!==sub.id);
+  });
+  save();
 }
 
 function delPatient(id){
@@ -1069,16 +1196,21 @@ function hjPatients(ym, day){
     return !!(rec.tedashiDays && Number(rec.tedashiDays[day])>0);
   });
 }
-/* 患者の保険種別 → 個人別の請求様式（selectのid, 出力関数名） */
-const HJ_SEIKYU={
-  '社保':      ['meisaiPtShinseisho',  'linkExcelShinseisho',  '⑩ 療養費支給申請書'],
-  '国保':      ['meisaiPtShinseisho',  'linkExcelShinseisho',  '⑩ 療養費支給申請書'],
-  '後期':      ['meisaiPtShinseisho',  'linkExcelShinseisho',  '⑩ 療養費支給申請書'],
-  '共済':      ['meisaiPtShinseisho',  'linkExcelShinseisho',  '⑩ 療養費支給申請書'],
-  '利用証一般':['meisaiPtRiyouIppan',  'linkExcelRiyouIppan',  '⑨ 利用券一般 明細書'],
-  '利用証後期':['meisaiPtKoukiGo',     'linkExcelKoukiGo',     '⑧ 後期高齢（後）明細書'],
-  '後期助成後':['meisaiPtKoukiGo',     'linkExcelKoukiGo',     '⑧ 後期高齢（後）明細書']
+/* 券種 → 個人別の請求様式（selectのid, 出力関数名, ボタン名, 説明） */
+const HJ_FORMS={
+  ryoyo:{sel:'meisaiPtShinseisho', fn:'linkExcelShinseisho', btn:'⑩ 療養費', label:'⑩ 療養費支給申請書'},
+  ippan:{sel:'meisaiPtRiyouIppan', fn:'linkExcelRiyouIppan', btn:'⑨ 前券',   label:'⑨ 利用券一般 明細書'},
+  kouki:{sel:'meisaiPtKoukiGo',    fn:'linkExcelKoukiGo',    btn:'⑧ 後券',   label:'⑧ 後期高齢（後）明細書'}
 };
+/* その月にその患者が出せる様式（1人にまとめた患者は療養費と券の両方が出る） */
+function hjFormsFor(p, ym){
+  const rec=getRecord(p.id,ym); if(!rec) return [];
+  const out=[];
+  if(isRyoyo(p.ins) && ryoyoDates(rec,p).length) out.push('ryoyo');
+  if(ippanDates(rec,p).length) out.push('ippan');
+  if(koukiDates(rec,p).length) out.push('kouki');
+  return out;
+}
 function renderHonjitsu(){
   const dEl=document.getElementById('hjDate'); if(!dEl) return;
   if(!dEl.value) dEl.value=hjTodayStr();
@@ -1109,9 +1241,10 @@ function renderHonjitsu(){
     } else {
       kubunCell='<span class="muted">施術なし</span>';
     }
-    const sk=HJ_SEIKYU[p.ins];
-    const btn=sk
-      ? '<button class="btn sm primary" onclick="hjSeikyu(\''+p.id+'\')">請求書を作る</button><div class="hint" style="margin-top:2px">'+sk[2]+'</div>'
+    const forms=hjFormsFor(p, ym);
+    const btn=forms.length
+      ? forms.map(k=>'<button class="btn sm primary" style="margin:1px" onclick="hjSeikyu(\''+p.id+'\',\''+k+'\')" title="'+HJ_FORMS[k].label+'">'+HJ_FORMS[k].btn+'</button>').join('')
+        +'<div class="hint" style="margin-top:2px">'+forms.map(k=>HJ_FORMS[k].label).join('／')+'</div>'
       : '<span class="muted">個人別様式なし</span>';
     rows+=`<tr>
       <td class="ctr">${i+1}</td>
@@ -1165,32 +1298,33 @@ function hjOpenNyuryoku(pid){
   const sel=document.getElementById('nyPatient'); if(sel) sel.value=pid;
   loadRecord();
 }
-/* 患者1人分の請求書を、その種別の様式に自動でつないで作成する */
-function hjSeikyu(pid, quiet){
+/* 患者1人分の請求書を、その様式に自動でつないで作成する */
+function hjSeikyu(pid, kind, quiet){
   const p=DB.patients.find(x=>x.id===pid); if(!p) return false;
   const dv=document.getElementById('hjDate').value; if(!dv) return false;
   const ym=dv.slice(0,7);
-  const sk=HJ_SEIKYU[p.ins];
-  if(!sk){ if(!quiet) toast(p.ins+'は個人別の請求様式がありません（集計表・総括票をご利用ください）'); return false; }
-  const fn=window[sk[1]];
+  const f=HJ_FORMS[kind];
+  if(!f){ if(!quiet) toast('この患者に合う個人別の請求様式がありません（集計表・総括票をご利用ください）'); return false; }
+  const fn=window[f.fn];
   if(typeof fn!=='function'){ if(!quiet) toast('請求書の作成機能が見つかりません'); return false; }
   const mEl=document.getElementById('meisaiMonth');
   if(mEl){ mEl.value=ym; renderMeisaiPanel(); }        // 先に月をそろえてから患者を選ぶ
-  const sel=document.getElementById(sk[0]); if(sel) sel.value=pid;
+  const sel=document.getElementById(f.sel); if(sel) sel.value=pid;
   try{ fn(ym); }catch(e){ if(!quiet) toast(p.name+'：請求書の作成に失敗しました'); return false; }
   return true;
 }
-/* その日の全員分をまとめて作成 */
+/* その日の全員分をまとめて作成（1人が複数様式を持つ場合は全部作る） */
 function hjSeikyuAll(){
   const dv=document.getElementById('hjDate').value; if(!dv) return;
   const ym=dv.slice(0,7), day=Number(dv.slice(8,10));
-  const list=hjPatients(ym, day).filter(p=>HJ_SEIKYU[p.ins]);
-  if(!list.length){ toast('個人別の請求様式がある患者がいません'); return; }
-  if(!confirm(list.length+'名分の請求書ファイルをまとめてダウンロードします。よろしいですか？')) return;
+  const jobs=[];
+  hjPatients(ym, day).forEach(p=>{ hjFormsFor(p,ym).forEach(k=>jobs.push([p.id,k])); });
+  if(!jobs.length){ toast('個人別の請求様式がある患者がいません'); return; }
+  if(!confirm(jobs.length+'件の請求書ファイルをまとめてダウンロードします。よろしいですか？')) return;
   let ok=0;
-  list.forEach((p,i)=>{ setTimeout(()=>{
-    if(hjSeikyu(p.id, true)) ok++;
-    if(i===list.length-1) setTimeout(()=>toast(ok+'名分の請求書を作成しました'), 400);
+  jobs.forEach((j,i)=>{ setTimeout(()=>{
+    if(hjSeikyu(j[0], j[1], true)) ok++;
+    if(i===jobs.length-1) setTimeout(()=>toast(ok+'件の請求書を作成しました'), 400);
   }, i*700); });
 }
 
@@ -2473,19 +2607,23 @@ function _hinodeXlsxSave(files,xml,name){
 }
 
 /* 患者選択セレクトを対象保険種別だけに絞って作る */
-function _hinodeFillMeisaiPt(selectId, insList){
+function _hinodeFillMeisaiPt(selectId, insList, kind){
   var sel=document.getElementById(selectId); if(!sel) return;
   var cur=sel.value;
+  // 保険種別が一致する患者に加えて、1人にまとめた結果その券の施術日を持つ患者も出す
+  var list=DB.patients.filter(function(p){
+    if(insList.indexOf(p.ins)>=0) return true;
+    return kind ? hasKindAny(p,kind) : false;
+  });
   sel.innerHTML='<option value="">（患者を選択）</option>'+
-    DB.patients.filter(function(p){return insList.indexOf(p.ins)>=0;})
-      .map(function(p){return '<option value="'+p.id+'">'+_hinodeWordEsc(p.name)+'</option>';}).join('');
+    list.map(function(p){return '<option value="'+p.id+'">'+_hinodeWordEsc(p.name)+'（'+_hinodeWordEsc(p.ins)+'）</option>';}).join('');
   if(cur) sel.value=cur;
 }
 function renderMeisaiPanel(){
-  _hinodeFillMeisaiPt('meisaiPtKoukiMae', ['利用証後期','後期助成後']);
-  _hinodeFillMeisaiPt('meisaiPtKoukiGo', ['利用証後期','後期助成後']);
-  _hinodeFillMeisaiPt('meisaiPtRiyouIppan', ['利用証一般']);
-  _hinodeFillMeisaiPt('meisaiPtShinseisho', ['社保','国保','後期','共済']);
+  _hinodeFillMeisaiPt('meisaiPtKoukiMae', ['利用証後期','後期助成後'], 'kouki');
+  _hinodeFillMeisaiPt('meisaiPtKoukiGo', ['利用証後期','後期助成後'], 'kouki');
+  _hinodeFillMeisaiPt('meisaiPtRiyouIppan', ['利用証一般'], 'ippan');
+  _hinodeFillMeisaiPt('meisaiPtShinseisho', ['社保','国保','後期','共済'], null);
   var mEl=document.getElementById('meisaiMonth');
   if(mEl && !mEl.value){
     var d=new Date(); mEl.value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
@@ -2508,6 +2646,8 @@ function linkExcelKoukiMae(ym){
   if(!pid){ toast('患者を選択してください'); return; }
   var p=DB.patients.find(function(x){return x.id===pid;}); if(!p) return;
   var c=calc(p,ym), dates=_hinodePatientDates(p,ym,'kouki');
+  // 後券（利用券 後期）の回数・金額。1人にまとめた患者でも券の分だけを計上する
+  var cnt=dates.length, amt=cnt*DB.settings.rates.riyou_kouki;
   if(!dates.length){ toast(p.name+'：対象月に「後券（利用券 後期）」の施術日がありません'); return; }
   var yp=ym.split('-'), r=Number(yp[0])-2018, m=Number(yp[1]);
   var o=_hinodeXlsxOpen(TPL_KOUKI_MAE_B64), xml=o.xml;
@@ -2522,9 +2662,9 @@ function linkExcelKoukiMae(ym){
   xml=_setXlsxCellNum(xml,'E7',dates[0]);
   var rows=['F8','F9','F10','F11','F12','F13','F14','F15','F16','F17','F18','F19','F20','F21','F22','F23','F24','F25','F26','F27','F28','F29','F30'];
   for(var i=1;i<dates.length && i-1<rows.length;i++){ xml=_setXlsxCellNum(xml,rows[i-1].replace('F','E'),dates[i]); }
-  xml=_setXlsxCellNum(xml,'L33',c.count);
+  xml=_setXlsxCellNum(xml,'L33',cnt);
   _hinodeXlsxSave(o.files,xml,'⑦後期高齢（前）明細書_'+p.name+'_記入済み.xlsx');
-  toast('⑦'+p.name+'　後期(前)明細書Excel出力（'+c.count+'回 '+_yen(c.seikyu)+'円）'+_hinodeMissing(p,['insNo','kofuNo']));
+  toast('⑦'+p.name+'　後期(前)明細書Excel出力（'+cnt+'回 '+_yen(amt)+'円）'+_hinodeMissing(p,['insNo','kofuNo']));
 }
 
 /* ⑧ 後期高齢（後）明細書【個人申請用】（様式第12号）実Excel差し込み */
@@ -2551,14 +2691,15 @@ function linkExcelKoukiGo(ym){
     xml=_setXlsxCellText(xml,col+row,dates[i]+'日');
     xml=_setXlsxCellText(xml,markCols[col]+row,'○'); // はり列にマーク（種別内訳は未管理のため一律）
   }
-  var amt=c.seikyu;
-  xml=_setXlsxCellText(xml,'N18','（'+c.count+'）回');
+  // 後券（利用券 後期）の回数・金額。1人にまとめた患者でも券の分だけを計上する
+  var cnt=dates.length, amt=cnt*DB.settings.rates.riyou_kouki;
+  xml=_setXlsxCellText(xml,'N18','（'+cnt+'）回');
   xml=_setXlsxCellText(xml,'AJ18','＝（'+_yen(amt)+'）円');
   xml=_setXlsxCellText(xml,'AJ20','施術料負担金請求額（'+_yen(amt)+'）円');
   xml=_setXlsxCellText(xml,'K23','有  ・  無');
   _hinodeAddOvalPartial(o.files,'K23','N23',0.78,1.0); // その他施術の請求：本システムでは扱わないため既定で「無」
   _hinodeXlsxSave(o.files,xml,'⑧後期高齢（後）明細書_'+p.name+'_記入済み.xlsx');
-  toast('⑧'+p.name+'　後期(後)明細書Excel出力（'+c.count+'回 '+_yen(amt)+'円）'+_hinodeMissing(p,['addr','birth','kofuNo','symbol']));
+  toast('⑧'+p.name+'　後期(後)明細書Excel出力（'+cnt+'回 '+_yen(amt)+'円）'+_hinodeMissing(p,['addr','birth','kofuNo','symbol']));
 }
 
 /* ⑨ 利用券一般 明細書【個人申請用】 実Excel差し込み */
@@ -2585,14 +2726,15 @@ function linkExcelRiyouIppan(ym){
     xml=_setXlsxCellText(xml,col+row,dates[i]+'日');
     xml=_setXlsxCellText(xml,markCols[col]+row,'○');
   }
-  var amt=c.seikyu;
-  xml=_setXlsxCellText(xml,'N18','（'+c.count+'）回');
+  // 前券（利用券 一般）の回数・金額。1人にまとめた患者でも券の分だけを計上する
+  var cnt=dates.length, amt=cnt*DB.settings.rates.riyou_ippan;
+  xml=_setXlsxCellText(xml,'N18','（'+cnt+'）回');
   xml=_setXlsxCellText(xml,'AJ18','＝（'+_yen(amt)+'）円');
   xml=_setXlsxCellText(xml,'AJ20','施術料負担金請求額（'+_yen(amt)+'）円');
   xml=_setXlsxCellText(xml,'K23','有  ・  無');
   _hinodeAddOvalPartial(o.files,'K23','N23',0.78,1.0); // その他施術の請求：本システムでは扱わないため既定で「無」
   _hinodeXlsxSave(o.files,xml,'⑨利用券一般明細書_'+p.name+'_記入済み.xlsx');
-  toast('⑨'+p.name+'　利用券一般明細書Excel出力（'+c.count+'回 '+_yen(amt)+'円）'+_hinodeMissing(p,['addr','birth','kofuNo']));
+  toast('⑨'+p.name+'　利用券一般明細書Excel出力（'+cnt+'回 '+_yen(amt)+'円）'+_hinodeMissing(p,['addr','birth','kofuNo']));
 }
 
 /* ⑩ 療養費支給申請書（様式第５号の３）実Excel差し込み・2026-07-11利用者確認済み一部負担金位置版 */
