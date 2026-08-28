@@ -1964,21 +1964,28 @@ function printDoui(){
    同意書（はり及びきゅう療養費用）— 写真の様式を再現
    p=null で白紙（氏名なし）。患者を渡すと氏名・住所・生年月日等を差し込み。
    ============================================================ */
-function consentBirth(p){
-  // 生年月日：明・大・昭・平・令 を選び、該当を○。数値が分かれば差し込み
-  let era='', y='', m='', d='';
-  if(p && p.birth){
-    const dt=new Date(p.birth);
-    if(!isNaN(dt)){
-      const Y=dt.getFullYear();
-      // 和暦概算
-      if(Y>=2019){era='令';y=Y-2018;} else if(Y>=1989){era='平';y=Y-1988;}
-      else if(Y>=1926){era='昭';y=Y-1925;} else if(Y>=1912){era='大';y=Y-1911;} else {era='明';y=Y-1867;}
-      m=dt.getMonth()+1; d=dt.getDate();
-    }
-  }
-  const eras=['明','大','昭','平','令'].map(e=>`<span style="${era===e?'border:1.5px solid #000;border-radius:50%;padding:0 2px':''}">${e}</span>`).join('・');
+/* 同意書の年月日：元号の並び（明・大・昭・平・令 など）から該当を○で囲み、
+   年・月・日を和暦の数字で入れる。西暦のまま出さないための共通処理 */
+function consentWareki(dateStr, eraList){
+  const list = eraList || ['明','大','昭','平','令'];
+  const e = _hinodeEra(dateStr);
+  const mark = e ? e.era.charAt(0) : '';          // 令和→令、平成→平、昭和→昭…
+  const y = e ? (e.year===1?'元':e.year) : '';
+  const m = e ? e.month : '';
+  const d = e ? e.day : '';
+  const eras = list.map(x=>`<span style="${mark===x?'border:1.5px solid #000;border-radius:50%;padding:0 2px':''}">${x}</span>`).join('・');
   return `${eras}　<u>　${y}　</u>年　<u>　${m}　</u>月　<u>　${d}　</u>日`;
+}
+/* 用紙に「令和」が印字済みの欄用：年・月・日だけを入れる（令和以外なら元号を添える） */
+function consentWarekiPlain(dateStr){
+  const e=_hinodeEra(dateStr);
+  if(!e) return `<u>　　　</u>年　<u>　　</u>月　<u>　　</u>日`;
+  const y=(e.year===1?'元':e.year);
+  const pre=(e.era==='令和')?'':`（${e.era}）`;
+  return `${pre}<u>　${y}　</u>年　<u>　${e.month}　</u>月　<u>　${e.day}　</u>日`;
+}
+function consentBirth(p){
+  return consentWareki(p && p.birth, ['明','大','昭','平','令']);
 }
 function sheetConsent(p){
   const inj = p ? (p.injury||'') : '';
@@ -2006,9 +2013,9 @@ function sheetConsent(p){
           </table></td></tr>
       <tr><td class="lbl">病　名</td><td style="padding:6px 10px;font-size:11px">${byoRows}
           <div style="font-size:9.5px;margin-top:4px">※1〜6は、当てはまるものに○をつけて下さい。<br>　7は、慢性的な疼痛を主訴とする疾病で鍼灸の施術に同意する病名を記載下さい。</div></td></tr>
-      <tr><td class="lbl">発病年月日</td><td style="height:9mm">　昭・平・令　<u>　${p&&p.injuryDate?esc(p.injuryDate):''}　</u>　年　　　月　　　日</td></tr>
+      <tr><td class="lbl">発病年月日</td><td style="height:9mm">　${consentWareki(p&&p.injuryDate,['昭','平','令'])}</td></tr>
       <tr><td class="lbl">同意区分</td><td style="height:9mm">　初回の同意　・　再同意　　　（○をつけて下さい）</td></tr>
-      <tr><td class="lbl">診察日</td><td style="height:9mm">　令和　${p&&p.consentDate?esc(p.consentDate):'　　'}　年　　　月　　　日</td></tr>
+      <tr><td class="lbl">診察日</td><td style="height:9mm">　令和　${consentWarekiPlain(p&&p.consentDate)}</td></tr>
       <tr><td class="lbl">注意事項等</td><td style="height:22mm;vertical-align:top;font-size:10px">施術に当たって注意すべき事項等があれば記載して下さい（任意）</td></tr>
       <tr><td colspan="2" style="padding:10px 14px;height:34mm;vertical-align:top">
         <p style="font-size:13px;margin:6px 0 14px">上記の者については、頭書の疾病により鍼灸の施術に同意する。</p>
@@ -2566,7 +2573,8 @@ function _hinodeEra(dateStr){
   var d=new Date(dateStr+'T00:00:00'); if(isNaN(d)) return null;
   var y=d.getFullYear(), m=d.getMonth()+1, day=d.getDate();
   var era='令和', base=2018;
-  if(d < new Date('1926-12-25')){ era='大正'; base=1911; }
+  if(d < new Date('1912-07-30')){ era='明治'; base=1867; }
+  else if(d < new Date('1926-12-25')){ era='大正'; base=1911; }
   else if(d < new Date('1989-01-08')){ era='昭和'; base=1925; }
   else if(d < new Date('2019-05-01')){ era='平成'; base=1988; }
   else { era='令和'; base=2018; }
