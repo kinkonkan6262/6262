@@ -2724,6 +2724,14 @@ function renderMeisaiPanel(){
 }
 
 /* ⑦ 後期高齢（前）明細書（様式第７号）実Excel差し込み */
+/* 傷病名「神経痛（腰下肢）」を症状と部位に分ける。部位が無い場合は既定の部位を補う */
+function _hinodeInjuryParts(injury){
+  var s=(injury||'').trim();
+  var m=s.match(/^(.*?)[（(]([^）)]+)[）)]\s*$/);
+  if(m) return {sho:m[1].trim(), bui:m[2].trim()};
+  var DEF={'神経痛':'腰下肢','腰痛症':'腰','五十肩':'肩','頚腕症候群':'首'};
+  return {sho:s, bui:DEF[s]||''};
+}
 function linkExcelKoukiMae(ym){
   var sel=document.getElementById('meisaiPtKoukiMae'); var pid=sel&&sel.value;
   if(!pid){ toast('患者を選択してください'); return; }
@@ -2734,17 +2742,34 @@ function linkExcelKoukiMae(ym){
   if(!dates.length){ toast(p.name+'：対象月に「後券（利用券 後期）」の施術日がありません'); return; }
   var yp=ym.split('-'), r=Number(yp[0])-2018, m=Number(yp[1]);
   var o=_hinodeXlsxOpen(TPL_KOUKI_MAE_B64), xml=o.xml;
-  var insDigits=(p.insNo||'').replace(/[^0-9]/g,'').padStart(8,' ').slice(-8);
+  // 被保険者番号は名簿の「被保険者証 記号番号」を使う（様式7号のHTML版・⑧と同じ）
+  var insDigits=(p.symbol||p.insNo||'').replace(/[^0-9]/g,'').padStart(8,' ').slice(-8);
   var insCols=['H','I','J','K','L','M','N','O'];
   for(var di=0;di<8;di++){ var dch=insDigits.charAt(di); if(dch.trim()!=='') xml=_setXlsxCellText(xml,insCols[di]+'3',dch); }
   xml=_setXlsxCellText(xml,'S3',(p.kofuNo||'').split('-')[0]||'');
   xml=_setXlsxCellText(xml,'X3',(p.kofuNo||'').split('-')[1]||'');
   xml=_setXlsxCellText(xml,'H4',p.name);
+  // 交付年月日：利用証は年度当初（4月1日）交付として差し込む
+  var fy=(m>=4? Number(yp[0]) : Number(yp[0])-1)-2018;
+  xml=_setXlsxCellText(xml,'S4','令和'+(fy===1?'元':fy));
+  xml=_setXlsxCellNum(xml,'W4',4);
+  xml=_setXlsxCellNum(xml,'Z4',1);
   xml=_setXlsxCellText(xml,'A7','令和'+(r===1?'元':r));
   xml=_setXlsxCellNum(xml,'C7',m);
   xml=_setXlsxCellNum(xml,'E7',dates[0]);
   var rows=['F8','F9','F10','F11','F12','F13','F14','F15','F16','F17','F18','F19','F20','F21','F22','F23','F24','F25','F26','F27','F28','F29','F30'];
   for(var i=1;i<dates.length && i-1<rows.length;i++){ xml=_setXlsxCellNum(xml,rows[i-1].replace('F','E'),dates[i]); }
+  // 症状・部位・はり・きゅう（実物Excelの様式に合わせて差し込み。2日目以降は〃）
+  var ip=_hinodeInjuryParts(p.injury);
+  for(var j=0;j<dates.length && j<24;j++){
+    var drow=7+j;
+    if(ip.sho){
+      xml=_setXlsxCellText(xml,'G'+drow, j===0?ip.sho:'〃');
+      if(ip.bui) xml=_setXlsxCellText(xml,'O'+drow, j===0?ip.bui:'〃');
+    }
+    xml=_setXlsxCellText(xml,'W'+drow,'○');
+    if(p.tech!=='1') xml=_setXlsxCellText(xml,'Y'+drow,'○');
+  }
   xml=_setXlsxCellNum(xml,'L33',cnt);
   _hinodeXlsxSave(o.files,xml,'⑦後期高齢（前）明細書_'+p.name+'_記入済み.xlsx');
   toast('⑦'+p.name+'　後期(前)明細書Excel出力（'+cnt+'回 '+_yen(amt)+'円）'+_hinodeMissing(p,['insNo','kofuNo']));
