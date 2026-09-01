@@ -2742,12 +2742,16 @@ function linkExcelKoukiMae(ym){
   if(!dates.length){ toast(p.name+'：対象月に「後券（利用券 後期）」の施術日がありません'); return; }
   var yp=ym.split('-'), r=Number(yp[0])-2018, m=Number(yp[1]);
   var o=_hinodeXlsxOpen(TPL_KOUKI_MAE_B64), xml=o.xml;
+  // 数字枠などの赤文字は黒で出力する
+  o.files['xl/styles.xml']=_strToU8(_u8ToStr(o.files['xl/styles.xml']).replace(/FFFF0000/g,'FF000000'));
   // 被保険者番号は名簿の「被保険者証 記号番号」を使う（様式7号のHTML版・⑧と同じ）
   var insDigits=(p.symbol||p.insNo||'').replace(/[^0-9]/g,'').padStart(8,' ').slice(-8);
   var insCols=['H','I','J','K','L','M','N','O'];
   for(var di=0;di<8;di++){ var dch=insDigits.charAt(di); if(dch.trim()!=='') xml=_setXlsxCellText(xml,insCols[di]+'3',dch); }
-  xml=_setXlsxCellText(xml,'S3',(p.kofuNo||'').split('-')[0]||'');
-  xml=_setXlsxCellText(xml,'X3',(p.kofuNo||'').split('-')[1]||'');
+  // 交付番号も被保険者番号と同じく1枠1文字の順で差し込む（ハイフンもそのまま）
+  var kofu=(p.kofuNo||'').trim();
+  var kofuCols=['S','T','U','V','W','X','Y','Z','AA','AB'];
+  for(var ki=0;ki<kofuCols.length && ki<kofu.length;ki++){ xml=_setXlsxCellText(xml,kofuCols[ki]+'3',kofu.charAt(ki)); }
   xml=_setXlsxCellText(xml,'H4',p.name);
   // 交付年月日：利用証は年度当初（4月1日）交付として差し込む
   var fy=(m>=4? Number(yp[0]) : Number(yp[0])-1)-2018;
