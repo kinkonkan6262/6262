@@ -865,7 +865,7 @@ function openPatient(id){
   const p = id ? DB.patients.find(x=>x.id===id) : {
     id:'', name:'', kana:'', gender:'', birth:'', ins:'国保', insNo:'', symbol:'',
     addr:'', tel:'', hospital:'', doctor:'', consentDate:'', injury:'頚腕症候群（首）',
-    injuryDate:'', initialDate:'', tech:'2', burden:3, kofuNo:'', note:''
+    injuryDate:'', initialDate:'', tech:'2', burden:3, kofuNo:'', kofuDate:'', sym:'', bui:'', note:''
   };
   const injIsOpt = INJURY_OPTIONS.includes(p.injury);
   const m=document.getElementById('modal');
@@ -892,7 +892,17 @@ function openPatient(id){
         <option value="1" ${p.tech==='1'?'selected':''}>1術</option></select></div>
       <div class="field" id="row_burden"><label>一部負担割合</label>
         <select id="f_burden">${[1,2,3].map(b=>`<option value="${b}" ${p.burden==b?'selected':''}>${b}割</option>`).join('')}</select></div>
-      <div class="field" id="row_kofu"><label>交付番号（後期）</label><input id="f_kofuNo" value="${esc(p.kofuNo)}"></div>
+      <div style="grid-column:1/3;font-weight:700;color:var(--accent);border-top:1px solid #dbe3ea;padding-top:8px" id="row_miyazaki_hd">宮崎県（後期高齢 助成）</div>
+      <div class="field" id="row_kofu"><label>交付番号</label><input id="f_kofuNo" value="${esc(p.kofuNo)}"></div>
+      <div class="field" id="row_kofuDate"><label>交付年月日</label><input type="date" id="f_kofuDate" value="${esc(p.kofuDate)}"></div>
+      <div class="field" id="row_sym"><label>症状</label>
+        <select id="f_sym" onchange="symChange()">
+          ${['','頚腕症候群','腰痛症','神経痛','五十肩'].map(t=>`<option value="${t}" ${p.sym===t?'selected':''}>${t||'－'}</option>`).join('')}
+        </select></div>
+      <div class="field" id="row_bui"><label>部位</label>
+        <select id="f_bui">
+          ${['','首','腰','腰下肢','肩'].map(t=>`<option value="${t}" ${p.bui===t?'selected':''}>${t||'－'}</option>`).join('')}
+        </select></div>
       <div class="field"><label>傷病名（同意書の傷病名）</label>
         <select id="f_injury" onchange="injurySelChange()">
           ${INJURY_OPTIONS.map(t=>`<option ${p.injury===t?'selected':''}>${t}</option>`).join('')}
@@ -925,14 +935,24 @@ function patInsChange(){
   const ryoyo=isRyoyo(ins);
   document.getElementById('row_tech').style.display=(ryoyo||ins==='生保')?'':'none';
   document.getElementById('row_burden').style.display=ryoyo?'':'none';
-  document.getElementById('row_kofu').style.display=(ins==='後期'||ins==='利用証後期'||ins==='後期助成後')?'':'none';
+  const miyazaki=(ins==='後期'||ins==='利用証後期'||ins==='後期助成後');
+  ['row_miyazaki_hd','row_kofu','row_kofuDate','row_sym','row_bui'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.style.display=miyazaki?'':'none';
+  });
+}
+/* 宮崎県欄：症状を選ぶと対応する部位を自動で入れる */
+function symChange(){
+  const MAP={'頚腕症候群':'首','腰痛症':'腰','神経痛':'腰下肢','五十肩':'肩'};
+  const s=document.getElementById('f_sym').value;
+  if(MAP[s]) document.getElementById('f_bui').value=MAP[s];
 }
 function savePatient(id){
   const g=k=>document.getElementById('f_'+k).value;
   const injury = g('injury')==='__free__' ? g('injuryFree').trim() : g('injury');
   const obj={ name:g('name').trim(), kana:g('kana').trim(), ins:g('ins'), gender:g('gender'),
     birth:g('birth'), tel:g('tel'), zip:g('zip'), addr:g('addr'), symbol:g('symbol'), insNo:g('insNo'),
-    tech:g('tech'), burden:Number(g('burden')), kofuNo:g('kofuNo'), injury:injury,
+    tech:g('tech'), burden:Number(g('burden')), kofuNo:g('kofuNo'),
+    kofuDate:g('kofuDate'), sym:g('sym'), bui:g('bui'), injury:injury,
     injuryDate:g('injuryDate'), initialDate:g('initialDate'), hospital:g('hospital'),
     doctor:g('doctor'), doctorAddr:g('doctorAddr'), consentDate:g('consentDate'), note:g('note') };
   if(!obj.name){ toast('氏名を入力してください'); return; }
@@ -2732,14 +2752,34 @@ function _hinodeInjuryParts(injury){
   var DEF={'神経痛':'腰下肢','腰痛症':'腰','五十肩':'肩','頚腕症候群':'首'};
   return {sho:s, bui:DEF[s]||''};
 }
+/* 明細書に載せる症状・部位：患者名簿の宮崎県欄を優先し、無ければ傷病名から補う */
+function _hinodeSymBui(p){
+  var ip=_hinodeInjuryParts(p.injury);
+  return {sho:(p.sym||ip.sho), bui:(p.bui||ip.bui)};
+}
+/* 年度内（4月〜対象月の前月）に使った後券（利用券 後期）の回数。助成24回の消化数 */
+function _hinodeKoukiUsedBefore(p, ym){
+  var yp=ym.split('-'), y=Number(yp[0]), m=Number(yp[1]);
+  var fyStart=(m>=4? y : y-1)+'-04';
+  var used=0;
+  DB.records.forEach(function(r){
+    if(r.patientId!==p.id || !r.ym) return;
+    if(r.ym>=fyStart && r.ym<ym) used+=koukiDates(r,p).length;
+  });
+  return used;
+}
 function linkExcelKoukiMae(ym){
   var sel=document.getElementById('meisaiPtKoukiMae'); var pid=sel&&sel.value;
   if(!pid){ toast('患者を選択してください'); return; }
   var p=DB.patients.find(function(x){return x.id===pid;}); if(!p) return;
-  var c=calc(p,ym), dates=_hinodePatientDates(p,ym,'kouki');
+  var allKouki=_hinodePatientDates(p,ym,'kouki');
+  if(!allKouki.length){ toast(p.name+'：対象月に「後券（利用券 後期）」の施術日がありません'); return; }
+  // 助成金明細書（様式第7号）は年度24回まで。25回目からは⑧個人申請用に載せる
+  var quota=Math.max(0, 24-_hinodeKoukiUsedBefore(p,ym));
+  var dates=allKouki.slice(0,quota);
+  if(!dates.length){ toast(p.name+'：助成の年度24回を使い切っています。この月の分は⑧個人申請用で出力してください'); return; }
   // 後券（利用券 後期）の回数・金額。1人にまとめた患者でも券の分だけを計上する
   var cnt=dates.length, amt=cnt*DB.settings.rates.riyou_kouki;
-  if(!dates.length){ toast(p.name+'：対象月に「後券（利用券 後期）」の施術日がありません'); return; }
   var yp=ym.split('-'), r=Number(yp[0])-2018, m=Number(yp[1]);
   var o=_hinodeXlsxOpen(TPL_KOUKI_MAE_B64), xml=o.xml;
   // 数字枠などの赤文字は黒で出力する
@@ -2753,23 +2793,30 @@ function linkExcelKoukiMae(ym){
   var kofuCols=['S','T','U','V','W','X','Y','Z','AA','AB'];
   for(var ki=0;ki<kofuCols.length && ki<kofu.length;ki++){ xml=_setXlsxCellText(xml,kofuCols[ki]+'3',kofu.charAt(ki)); }
   xml=_setXlsxCellText(xml,'H4',p.name);
-  // 交付年月日：利用証は年度当初（4月1日）交付として差し込む
-  var fy=(m>=4? Number(yp[0]) : Number(yp[0])-1)-2018;
-  xml=_setXlsxCellText(xml,'S4','令和'+(fy===1?'元':fy));
-  xml=_setXlsxCellNum(xml,'W4',4);
-  xml=_setXlsxCellNum(xml,'Z4',1);
+  // 交付年月日：患者名簿の宮崎県欄から。未入力なら年度当初（4月1日）交付として差し込む
+  var kd=_hinodeEra(p.kofuDate);
+  if(kd){
+    xml=_setXlsxCellText(xml,'S4',kd.era+(kd.year===1?'元':kd.year));
+    xml=_setXlsxCellNum(xml,'W4',kd.month);
+    xml=_setXlsxCellNum(xml,'Z4',kd.day);
+  } else {
+    var fy=(m>=4? Number(yp[0]) : Number(yp[0])-1)-2018;
+    xml=_setXlsxCellText(xml,'S4','令和'+(fy===1?'元':fy));
+    xml=_setXlsxCellNum(xml,'W4',4);
+    xml=_setXlsxCellNum(xml,'Z4',1);
+  }
   xml=_setXlsxCellText(xml,'A7','令和'+(r===1?'元':r));
   xml=_setXlsxCellNum(xml,'C7',m);
   xml=_setXlsxCellNum(xml,'E7',dates[0]);
   var rows=['F8','F9','F10','F11','F12','F13','F14','F15','F16','F17','F18','F19','F20','F21','F22','F23','F24','F25','F26','F27','F28','F29','F30'];
   for(var i=1;i<dates.length && i-1<rows.length;i++){ xml=_setXlsxCellNum(xml,rows[i-1].replace('F','E'),dates[i]); }
   // 症状・部位・はり・きゅう（実物Excelの様式に合わせて差し込み。2日目以降は〃）
-  var ip=_hinodeInjuryParts(p.injury);
+  var sb=_hinodeSymBui(p);
   for(var j=0;j<dates.length && j<24;j++){
     var drow=7+j;
-    if(ip.sho){
-      xml=_setXlsxCellText(xml,'G'+drow, j===0?ip.sho:'〃');
-      if(ip.bui) xml=_setXlsxCellText(xml,'O'+drow, j===0?ip.bui:'〃');
+    if(sb.sho){
+      xml=_setXlsxCellText(xml,'G'+drow, j===0?sb.sho:'〃');
+      if(sb.bui) xml=_setXlsxCellText(xml,'O'+drow, j===0?sb.bui:'〃');
     }
     xml=_setXlsxCellText(xml,'W'+drow,'○');
     if(p.tech!=='1') xml=_setXlsxCellText(xml,'Y'+drow,'○');
@@ -2780,7 +2827,7 @@ function linkExcelKoukiMae(ym){
   xml=_setXlsxCellNum(xml,'U34','');   // 未使用の「1,000円未満」行は空欄のまま
   xml=_setXlsxCellNum(xml,'U35',amt);
   _hinodeXlsxSave(o.files,xml,'⑦後期高齢（前）明細書_'+p.name+'_記入済み.xlsx');
-  toast('⑦'+p.name+'　後期(前)明細書Excel出力（'+cnt+'回 '+_yen(amt)+'円）'+_hinodeMissing(p,['insNo','kofuNo']));
+  toast('⑦'+p.name+'　後期(前)明細書Excel出力（'+cnt+'回 '+_yen(amt)+'円）'+_hinodeMissing(p,['symbol','kofuNo']));
 }
 
 /* ⑧ 後期高齢（後）明細書【個人申請用】（様式第12号）実Excel差し込み */
@@ -2788,8 +2835,12 @@ function linkExcelKoukiGo(ym){
   var sel=document.getElementById('meisaiPtKoukiGo'); var pid=sel&&sel.value;
   if(!pid){ toast('患者を選択してください'); return; }
   var p=DB.patients.find(function(x){return x.id===pid;}); if(!p) return;
-  var c=calc(p,ym), dates=_hinodePatientDates(p,ym,'kouki'), cl=DB.settings.clinic;
-  if(!dates.length){ toast(p.name+'：対象月に「後券（利用券 後期）」の施術日がありません'); return; }
+  var allKouki=_hinodePatientDates(p,ym,'kouki'), cl=DB.settings.clinic;
+  if(!allKouki.length){ toast(p.name+'：対象月に「後券（利用券 後期）」の施術日がありません'); return; }
+  // 助成（⑦様式7号）は年度24回まで。この個人申請用には25回目以降の分を載せる
+  var quota=Math.max(0, 24-_hinodeKoukiUsedBefore(p,ym));
+  var dates=allKouki.slice(quota);
+  if(!dates.length){ toast(p.name+'：この月の後券は年度24回以内です（⑦助成金明細書で出力してください）'); return; }
   var yp=ym.split('-'), r=Number(yp[0])-2018, m=Number(yp[1]);
   var o=_hinodeXlsxOpen(TPL_KOUKI_GO_B64), xml=o.xml;
   xml=_setXlsxCellText(xml,'J3',p.symbol||'');
@@ -2801,14 +2852,17 @@ function linkExcelKoukiGo(ym){
   xml=_setXlsxCellText(xml,'AB5',p.name);
   xml=_setXlsxCellText(xml,'G7',p.name);
   xml=_setXlsxCellText(xml,'AB7',_hinodeAge(p.birth,ym)+'　歳');
-  xml=_setXlsxCellText(xml,'G8',p.injury||'');
+  // 症状は患者名簿の宮崎県欄から（未入力なら傷病名から補う）。記入例：症状=神経痛
+  xml=_setXlsxCellText(xml,'G8',_hinodeSymBui(p).sho||'');
   xml=_setXlsxCellText(xml,'AB8',cl.manager||'');
   xml=_setXlsxCellText(xml,'B9','　　　　令和　'+(r===1?'元':r)+'　年　'+m+'　月　　　分　施　術　内　容');
-  var dayCols=['B','K','T','AC']; var markCols={B:'E',K:'N',T:'W',AC:'AF'};
+  var dayCols=['B','K','T','AC'];
+  var hariCols={B:'E',K:'N',T:'W',AC:'AF'}, kyuCols={B:'G',K:'P',T:'Y',AC:'AH'};
   for(var i=0;i<dates.length && i<24;i++){
     var block=Math.floor(i/6), rowOff=i%6, row=11+rowOff, col=dayCols[block];
     xml=_setXlsxCellText(xml,col+row,dates[i]+'日');
-    xml=_setXlsxCellText(xml,markCols[col]+row,'○'); // はり列にマーク（種別内訳は未管理のため一律）
+    xml=_setXlsxCellText(xml,hariCols[col]+row,'○');
+    if(p.tech!=='1') xml=_setXlsxCellText(xml,kyuCols[col]+row,'○'); // 2術は はり・きゅう両方に○（記入例どおり）
   }
   // 後券（利用券 後期）の回数・金額。1人にまとめた患者でも券の分だけを計上する
   var cnt=dates.length, amt=cnt*DB.settings.rates.riyou_kouki;
@@ -2821,7 +2875,10 @@ function linkExcelKoukiGo(ym){
   xml=_setXlsxCellHighlight(xml,'K23','有  ・  無', hasRyo?'有':'無');
   // 「有」のときは、様式の記入上の注意どおり「はり・きゅう」欄の施術日に○を付ける。
   // はり・きゅうを行った日そのものを示す欄なので、券の区分に関係なくその月の施術日すべてに付ける
-  if(hasRyo) _hinodeMarkHariKyuDays(o.files, _hinodePatientDates(p,ym));
+  if(hasRyo){
+    _hinodeMarkHariKyuDays(o.files, _hinodePatientDates(p,ym));
+    xml=_setXlsxCellText(xml,'H30',_hinodeInjuryParts(p.injury).sho||'');   // はり・きゅう欄の病名（記入例：頚腕症候群）
+  }
   _hinodeXlsxSave(o.files,xml,'⑧後期高齢（後）明細書_'+p.name+'_記入済み.xlsx');
   toast('⑧'+p.name+'　後期(後)明細書Excel出力（'+cnt+'回 '+_yen(amt)+'円）'+_hinodeMissing(p,['addr','birth','kofuNo','symbol']));
 }
