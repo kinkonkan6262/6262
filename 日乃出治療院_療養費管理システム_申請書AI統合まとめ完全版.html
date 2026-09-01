@@ -251,7 +251,7 @@ table.grid td.ctr,table.grid th.ctr{text-align:center;}
         <button class="btn" onclick="hjToday()">今日</button>
         <button class="btn" onclick="hjShiftDay(1)">翌日 →</button>
       </div>
-      <p class="hint" style="margin:0 0 10px">その日に施術した患者が自動で並びます。区分（療／前券／後券／療＋前券／療＋後券）と手出しはこの画面で直せます。「請求書を作る」を押すと、その患者の様式に自動でつないで請求書を作成します。</p>
+      <p class="hint" style="margin:0 0 10px">その日に施術した患者が自動で並びます。区分（保険種別ごとに選べるものだけ表示）と手出しはこの画面で直せます。「請求書を作る」を押すと、その患者の様式に自動でつないで請求書を作成します。</p>
       <div id="hjArea"></div>
     </div>
   </section>
@@ -621,6 +621,16 @@ function calc(p, ym){
    ------------------------------------------------------------ */
 const KUBUN_LABEL = {r:'療', t:'前券', k:'後券', b:'療＋前券', c:'療＋後券'};
 const KUBUN_CODES = ['r','t','k','b','c'];
+/* 保険種別ごとに選べる区分：社保＝療のみ、国保＝療／券／療＋券、他は全区分 */
+function kubunCodesFor(ins){
+  if(ins==='社保') return ['r'];
+  if(ins==='国保') return ['r','t','b'];
+  return KUBUN_CODES;
+}
+function kubunLabelFor(ins, code){
+  if(ins==='国保'){ if(code==='t') return '券'; if(code==='b') return '療＋券'; }
+  return KUBUN_LABEL[code];
+}
 const KUBUN_TYPES = ['社保','国保','後期','共済','利用証一般','利用証後期'];
 const TEDASHI_TYPES = ['社保','国保','後期','共済','生保','利用証一般','利用証後期'];
 function hasKubun(ins){ return KUBUN_TYPES.includes(ins); }
@@ -1006,13 +1016,14 @@ function loadRecord(){
   // 施術日ごとの区分（国保・後期・利用証一般・利用証後期）
   let kubunUI='';
   if(hasKubun(p.ins) && rec.dates.length){
+    const kCodes=kubunCodesFor(p.ins);
     kubunUI=`<div style="margin-top:14px"><div style="font-weight:700;margin-bottom:4px">日ごとの区分（${esc(p.ins)}）</div>`
-      +`<p class="hint" style="margin:0 0 8px">既定は${KUBUN_LABEL[defaultKubun(p.ins)]}。療／前券／後券／療＋前券／療＋後券に切替できます。</p>`;
+      +`<p class="hint" style="margin:0 0 8px">既定は${kubunLabelFor(p.ins,defaultKubun(p.ins))}。${kCodes.length>1?kCodes.map(c=>kubunLabelFor(p.ins,c)).join('／')+'に切替できます。':''}</p>`;
     rec.dates.forEach(d=>{
       const k=kubunOf(rec,d,p);
       kubunUI+=`<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;flex-wrap:wrap">
         <span style="width:46px;text-align:right">${d}日</span>`
-        +KUBUN_CODES.map(code=>`<button class="btn sm ${k===code?'primary':''}" onclick="setKubun('${pid}','${ym}',${d},'${code}')">${KUBUN_LABEL[code]}</button>`).join('')
+        +kCodes.map(code=>`<button class="btn sm ${k===code?'primary':''}" onclick="setKubun('${pid}','${ym}',${d},'${code}')">${kubunLabelFor(p.ins,code)}</button>`).join('')
         +'</div>';
     });
     kubunUI+='</div>';
@@ -1248,9 +1259,12 @@ function renderHonjitsu(){
     let kubunCell;
     if(hasKubun(p.ins) && on){
       const k=kubunOf(rec,day,p);
-      kubunCell='<select onchange="hjSetKubun(\''+p.id+'\',this.value)" style="padding:4px;border:1px solid #c4ced8;border-radius:6px">'
-        +KUBUN_CODES.map(code=>'<option value="'+code+'"'+(k===code?' selected':'')+'>'+KUBUN_LABEL[code]+'</option>').join('')
-        +'</select>';
+      const kCodes=kubunCodesFor(p.ins);
+      kubunCell = kCodes.length>1
+        ? '<select onchange="hjSetKubun(\''+p.id+'\',this.value)" style="padding:4px;border:1px solid #c4ced8;border-radius:6px">'
+          +kCodes.map(code=>'<option value="'+code+'"'+(k===code?' selected':'')+'>'+kubunLabelFor(p.ins,code)+'</option>').join('')
+          +'</select>'
+        : '<span class="muted">'+kubunLabelFor(p.ins,k)+'</span>';
     } else if(on){
       kubunCell='<span class="muted">'+esc(insLabel(p.ins))+'</span>';
     } else {
