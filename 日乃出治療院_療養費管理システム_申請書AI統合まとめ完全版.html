@@ -2775,6 +2775,10 @@ function linkExcelKoukiMae(ym){
     if(p.tech!=='1') xml=_setXlsxCellText(xml,'Y'+drow,'○');
   }
   xml=_setXlsxCellNum(xml,'L33',cnt);
+  // 金額は数式の再計算に頼らず、計算済みの値を直接書き込む（開いたとき空欄にならないように）
+  xml=_setXlsxCellNum(xml,'U33',amt);
+  xml=_setXlsxCellNum(xml,'U34','');   // 未使用の「1,000円未満」行は空欄のまま
+  xml=_setXlsxCellNum(xml,'U35',amt);
   _hinodeXlsxSave(o.files,xml,'⑦後期高齢（前）明細書_'+p.name+'_記入済み.xlsx');
   toast('⑦'+p.name+'　後期(前)明細書Excel出力（'+cnt+'回 '+_yen(amt)+'円）'+_hinodeMissing(p,['insNo','kofuNo']));
 }
