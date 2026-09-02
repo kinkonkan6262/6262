@@ -289,10 +289,10 @@ table.grid td.ctr,table.grid th.ctr{text-align:center;}
         <p id="meisaiMonthNote" style="background:#fff6dd;border:1px solid #e0b84a;border-radius:6px;padding:8px 12px;font-weight:bold;color:#7a5a00;margin:0"></p>
       </div>
       <div class="row" style="margin-bottom:10px;align-items:flex-end;flex-wrap:wrap;gap:10px">
-        <div class="field"><label>⑦ 後期高齢（前）明細書</label>
+        <div class="field"><label>⑦ 宮崎県後期高齢者医療広域連合<br>はり・きゅう・マッサージ等施術料助成金明細書（前期）</label>
           <select id="meisaiPtKoukiMae" class="field" style="padding:6px;border:1px solid #c4ced8;border-radius:6px;min-width:160px"></select></div>
         <button class="btn primary" onclick="linkExcelKoukiMae(document.getElementById('meisaiMonth').value)">⑦ Excel出力</button>
-        <div class="field"><label>⑧ 後期高齢（後）明細書</label>
+        <div class="field"><label>⑧ はり・きゅう・あんま施術料明細書【個人申請用】《後期高齢》（後期）</label>
           <select id="meisaiPtKoukiGo" class="field" style="padding:6px;border:1px solid #c4ced8;border-radius:6px;min-width:160px"></select></div>
         <button class="btn primary" onclick="linkExcelKoukiGo(document.getElementById('meisaiMonth').value)">⑧ Excel出力</button>
       </div>
@@ -1249,7 +1249,7 @@ function hjPatients(ym, day){
 const HJ_FORMS={
   ryoyo:{sel:'meisaiPtShinseisho', fn:'linkExcelShinseisho', btn:'⑩ 療養費', label:'⑩ 療養費支給申請書'},
   ippan:{sel:'meisaiPtRiyouIppan', fn:'linkExcelRiyouIppan', btn:'⑨ 前券',   label:'⑨ 利用券一般 明細書'},
-  kouki:{sel:'meisaiPtKoukiGo',    fn:'linkExcelKoukiGo',    btn:'⑧ 後券',   label:'⑧ 後期高齢（後）明細書'}
+  kouki:{sel:'meisaiPtKoukiGo',    fn:'linkExcelKoukiGo',    btn:'⑧ 後券',   label:'⑧ はり・きゅう・あんま施術料明細書【個人申請用】《後期高齢》（後期）'}
 };
 /* その月にその患者が出せる様式（1人にまとめた患者は療養費と券の両方が出る） */
 function hjFormsFor(p, ym){
