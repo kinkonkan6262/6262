@@ -440,7 +440,11 @@ function load(){
 function save(){ sortPatientsByIns(); localStorage.setItem(LS_KEY, JSON.stringify(DB)); }
 
 /* ---------- ユーティリティ ---------- */
+/* 初期データ（seed）の患者IDも Date.now() ベースのため、読み込み直後に付番を始めると
+   まれに同じ値を引いてID衝突（別患者のデータが混ざる不具合）が起きる。
+   既存患者IDの最大値より必ず大きい番号から始めることで衝突を防ぐ */
 let _id = Date.now();
+(DB.patients||[]).forEach(p=>{ const n=parseInt(String(p.id).replace(/^p/,''),10); if(!isNaN(n) && n>=_id) _id=n; });
 function uid(){ return 'p'+(++_id); }
 function yen(n){ return (n==null||isNaN(n))?'':Number(n).toLocaleString('ja-JP')+'円'; }
 function num(n){ return (n==null||isNaN(n))?'':Number(n).toLocaleString('ja-JP'); }
@@ -2842,9 +2846,16 @@ function linkExcelKoukiGo(ym){
   var allKouki=_hinodePatientDates(p,ym,'kouki'), cl=DB.settings.clinic;
   if(!allKouki.length){ toast(p.name+'：対象月に「後券（利用券 後期）」の施術日がありません'); return; }
   // 助成（⑦様式7号）は年度24回まで。この個人申請用には25回目以降の分を載せる
-  var quota=Math.max(0, 24-_hinodeKoukiUsedBefore(p,ym));
+  var usedBefore=_hinodeKoukiUsedBefore(p,ym);
+  var quota=Math.max(0, 24-usedBefore);
   var dates=allKouki.slice(quota);
-  if(!dates.length){ toast(p.name+'：この月の後券は年度24回以内です（⑦助成金明細書で出力してください）'); return; }
+  if(!dates.length){
+    // 消えやすいトーストだけだと見落とすため、はっきり分かるように確認ダイアログで案内する
+    alert(p.name+'さんの'+ym.replace('-','年')+'月分（後券'+allKouki.length+'日）は、\n'+
+      '年度の後券が現在まだ'+usedBefore+'回のため、全て⑦（1〜24回の助成金明細書）に含まれます。\n\n'+
+      '⑧（25回目以降の個人申請用）に出す分はまだありません。\n⑦のボタンで出力してください。');
+    return;
+  }
   var yp=ym.split('-'), r=Number(yp[0])-2018, m=Number(yp[1]);
   var o=_hinodeXlsxOpen(TPL_KOUKI_GO_B64), xml=o.xml;
   xml=_setXlsxCellText(xml,'J3',p.symbol||'');
