@@ -593,6 +593,15 @@ function calc(p, ym){
     const n = koukiDates(rec,p).length; out.count = n;
     out.unit = R.riyou_kouki; out.juts = R.riyou_kouki*n;
     out.total = out.juts; out.burden=0; out.seikyu = out.juts;
+    // 年度24回を超えた分はryoyoDates側に回っているので、通常の療養費として別枠で加算する
+    const rDates = ryoyoDates(rec,p).filter(d=>!koukiDates(rec,p).includes(d));
+    if(rDates.length){
+      const runit=(p.tech==='1')?R.juts1:R.juts2;
+      const rjuts=runit*rDates.length;
+      const rburden=Math.round(rjuts*((p.burden||0)/10));
+      out.excessRyoCount=rDates.length; out.excessRyoSeikyu=rjuts-rburden;
+      out.seikyu += out.excessRyoSeikyu;
+    }
   } else if(p.ins==='生保'){
     out.unit = R.juts1; out.juts = R.juts1*cnt;
     out.shokenFee = shoken ? R.shoken_seiho : 0;
@@ -675,23 +684,43 @@ function kubunOf(rec, d, p){
   if(k && KUBUN_CODES.indexOf(k)>=0) return k;
   return defaultKubun(p && p.ins);
 }
-/* 療養費として数える日（療・療＋前券・療＋後券） */
+function _hinodeIsKoukiFamily(ins){ return ins==='後期'||ins==='利用証後期'||ins==='後期助成後'; }
+/* 後券（利用券 後期）として数える日（後券・療＋後券）。
+   宮崎県後期高齢者医療広域連合の助成は年度（4月〜）24回まで。
+   25回目以降の後券タグ日は助成対象外＝通常の療養費としてryoyoDatesの側で計上する（同じ日を両方で二重計上しない） */
+function koukiDates(rec, p){
+  if(!rec || !p) return [];
+  if(!hasKubun(p.ins)) return (p.ins==='利用証後期'||p.ins==='後期助成後') ? rec.dates.slice() : [];
+  const all = rec.dates.filter(d=>{ const k=kubunOf(rec,d,p); return k==='k'||k==='c'; });
+  if(rec.ym && _hinodeIsKoukiFamily(p.ins)){
+    const quota=Math.max(0, 24-_hinodeKoukiUsedBefore(p, rec.ym));
+    return all.slice(0, quota);
+  }
+  return all;
+}
+/* ⑧の明細書用：quota（年度24回）に関係なく、その月に後券タグが付いた日をそのまま返す */
+function rawKoukiDates(rec, p){
+  if(!rec || !p) return [];
+  if(!hasKubun(p.ins)) return (p.ins==='利用証後期'||p.ins==='後期助成後') ? rec.dates.slice() : [];
+  return rec.dates.filter(d=>{ const k=kubunOf(rec,d,p); return k==='k'||k==='c'; });
+}
+/* 療養費として数える日（療・療＋前券・療＋後券、＋後期高齢の年度24回を超えた後券） */
 function ryoyoDates(rec, p){
   if(!rec) return [];
   if(!p || !hasKubun(p.ins)) return rec.dates.slice();
-  return rec.dates.filter(d=>{ const k=kubunOf(rec,d,p); return k==='r'||k==='b'||k==='c'; });
+  let base = rec.dates.filter(d=>{ const k=kubunOf(rec,d,p); return k==='r'||k==='b'||k==='c'; });
+  if(rec.ym && _hinodeIsKoukiFamily(p.ins)){
+    const withinQuota=koukiDates(rec,p);
+    const excessK = rec.dates.filter(d=>kubunOf(rec,d,p)==='k' && withinQuota.indexOf(d)<0);
+    base = base.concat(excessK);
+  }
+  return base.slice().sort((a,b)=>a-b);
 }
 /* 前券（利用券 一般）として数える日（前券・療＋前券） */
 function ippanDates(rec, p){
   if(!rec || !p) return [];
   if(!hasKubun(p.ins)) return (p.ins==='利用証一般') ? rec.dates.slice() : [];
   return rec.dates.filter(d=>{ const k=kubunOf(rec,d,p); return k==='t'||k==='b'; });
-}
-/* 後券（利用券 後期）として数える日（後券・療＋後券） */
-function koukiDates(rec, p){
-  if(!rec || !p) return [];
-  if(!hasKubun(p.ins)) return (p.ins==='利用証後期'||p.ins==='後期助成後') ? rec.dates.slice() : [];
-  return rec.dates.filter(d=>{ const k=kubunOf(rec,d,p); return k==='k'||k==='c'; });
 }
 function ticketDates(rec, p){ return ippanDates(rec, p); }   // 旧名（前券）
 function effRyoyoDates(p, ym){ return ryoyoDates(getRecord(p.id,ym), p); }
@@ -1119,11 +1148,13 @@ function renderNyCalc(p, ym){
     <div class="line"><span>単価</span><span>${yen(c.unit)}/回</span></div>
     <div class="line"><span>施術料</span><span>${yen(c.juts)}</span></div>`;
   if(c.shokenFee) html+=`<div class="line"><span>初検料</span><span>${yen(c.shokenFee)}</span></div>`;
+  if(c.excessRyoCount) html+=`<div class="line"><span>${c.count?'うち':''}年度24回超（療養費扱い ${c.excessRyoCount}回）</span><span>${yen(c.excessRyoSeikyu)}</span></div>`;
   if(isRyoyo(p.ins)){
     html+=`<div class="line"><span>合計</span><span>${yen(c.total)}</span></div>
       <div class="line"><span>一部負担(${p.burden}割)</span><span>${yen(c.burden)}</span></div>`;
   }
-  html+=`<div class="line total"><span>${isRyoyo(p.ins)?'請求額':c.label+'額'}</span><span>${yen(c.seikyu)}</span></div>`;
+  const totalLabel = isRyoyo(p.ins) ? '請求額' : ((c.excessRyoCount && !c.count) ? '療養費請求額（24回超）' : c.label+'額');
+  html+=`<div class="line total"><span>${totalLabel}</span><span>${yen(c.seikyu)}</span></div>`;
   box.innerHTML=html;
 }
 
@@ -1188,9 +1219,12 @@ function dayTotal(p, ym, d){
   if(on){
     if(hasKubun(p.ins)){
       const k=kubunOf(rec,d,p);
-      if(k==='r'||k==='b'||k==='c'){ const u=(p.tech==='1'?R.juts1:R.juts2); parts.push(['療（施術料）',u]); sum+=u; }
+      // 後期高齢は年度24回まで後券。それ以降のkタグ日は助成対象外＝療養費として扱う（koukiDatesと一致させる）
+      const inKouki = (k==='k'||k==='c') && koukiDates(rec,p).includes(d);
+      const asRyo = k==='r'||k==='b'||k==='c'||(k==='k'&&!inKouki);
+      if(asRyo){ const u=(p.tech==='1'?R.juts1:R.juts2); parts.push(['療（施術料）',u]); sum+=u; }
       if(k==='t'||k==='b'){ parts.push(['前券（利用券 一般）',R.riyou_ippan]); sum+=R.riyou_ippan; }
-      if(k==='k'||k==='c'){ parts.push(['後券（利用券 後期）',R.riyou_kouki]); sum+=R.riyou_kouki; }
+      if(inKouki){ parts.push(['後券（利用券 後期）',R.riyou_kouki]); sum+=R.riyou_kouki; }
     } else if(isRyoyo(p.ins)){ const u=(p.tech==='1'?R.juts1:R.juts2); parts.push(['療養費（施術料）',u]); sum+=u; }
     else if(p.ins==='後期助成後'){ parts.push(['助成',R.riyou_kouki]); sum+=R.riyou_kouki; }
     else if(p.ins==='生保'){ parts.push(['施術料',R.juts1]); sum+=R.juts1; }
@@ -2734,7 +2768,8 @@ function renderMeisaiPanel(){
   _hinodeFillMeisaiPt('meisaiPtKoukiMae', ['利用証後期','後期助成後'], 'kouki');
   _hinodeFillMeisaiPt('meisaiPtKoukiGo', ['利用証後期','後期助成後'], 'kouki');
   _hinodeFillMeisaiPt('meisaiPtRiyouIppan', ['利用証一般'], 'ippan');
-  _hinodeFillMeisaiPt('meisaiPtShinseisho', ['社保','国保','後期','共済'], null);
+  // 利用証後期・後期助成後の患者も、年度24回を超えた分がある月は療養費として選べるようにする
+  _hinodeFillMeisaiPt('meisaiPtShinseisho', ['社保','国保','後期','共済'], 'ryoyo');
   var mEl=document.getElementById('meisaiMonth');
   if(mEl && !mEl.value){
     var d=new Date(); mEl.value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
@@ -2780,12 +2815,15 @@ function linkExcelKoukiMae(ym){
   var sel=document.getElementById('meisaiPtKoukiMae'); var pid=sel&&sel.value;
   if(!pid){ toast('患者を選択してください'); return; }
   var p=DB.patients.find(function(x){return x.id===pid;}); if(!p) return;
-  var allKouki=_hinodePatientDates(p,ym,'kouki');
-  if(!allKouki.length){ toast(p.name+'：対象月に「後券（利用券 後期）」の施術日がありません'); return; }
-  // 助成金明細書（様式第7号）は年度24回まで。25回目からは⑧個人申請用に載せる
-  var quota=Math.max(0, 24-_hinodeKoukiUsedBefore(p,ym));
-  var dates=allKouki.slice(0,quota);
-  if(!dates.length){ toast(p.name+'：助成の年度24回を使い切っています。この月の分は⑧個人申請用で出力してください'); return; }
+  // koukiDates は年度24回のquotaを内部で考慮済み（25回目以降は助成対象外）
+  var dates=_hinodePatientDates(p,ym,'kouki');
+  if(!dates.length){
+    var hasRaw=rawKoukiDates(getRecord(p.id,ym),p).length>0;
+    toast(p.name+ (hasRaw
+      ? '：助成の年度24回を使い切っています。この月の分は⑩療養費支給申請書（はり・きゅう用）で出力してください'
+      : '：対象月に「後券（利用券 後期）」の施術日がありません'));
+    return;
+  }
   // 後券（利用券 後期）の回数・金額。1人にまとめた患者でも券の分だけを計上する
   var cnt=dates.length, amt=cnt*DB.settings.rates.riyou_kouki;
   var yp=ym.split('-'), r=Number(yp[0])-2018, m=Number(yp[1]);
@@ -2843,19 +2881,10 @@ function linkExcelKoukiGo(ym){
   var sel=document.getElementById('meisaiPtKoukiGo'); var pid=sel&&sel.value;
   if(!pid){ toast('患者を選択してください'); return; }
   var p=DB.patients.find(function(x){return x.id===pid;}); if(!p) return;
-  var allKouki=_hinodePatientDates(p,ym,'kouki'), cl=DB.settings.clinic;
-  if(!allKouki.length){ toast(p.name+'：対象月に「後券（利用券 後期）」の施術日がありません'); return; }
-  // 助成（⑦様式7号）は年度24回まで。この個人申請用には25回目以降の分を載せる
-  var usedBefore=_hinodeKoukiUsedBefore(p,ym);
-  var quota=Math.max(0, 24-usedBefore);
-  var dates=allKouki.slice(quota);
-  if(!dates.length){
-    // 消えやすいトーストだけだと見落とすため、はっきり分かるように確認ダイアログで案内する
-    alert(p.name+'さんの'+ym.replace('-','年')+'月分（後券'+allKouki.length+'日）は、\n'+
-      '年度の後券が現在まだ'+usedBefore+'回のため、全て⑦（1〜24回の助成金明細書）に含まれます。\n\n'+
-      '⑧（25回目以降の個人申請用）に出す分はまだありません。\n⑦のボタンで出力してください。');
-    return;
-  }
+  // ⑧は年度24回のquotaに関係なく、その月に後券タグが付いた日をそのまま載せる
+  var cl=DB.settings.clinic;
+  var dates=rawKoukiDates(getRecord(p.id,ym), p);
+  if(!dates.length){ toast(p.name+'：対象月に「後券（利用券 後期）」の施術日がありません'); return; }
   var yp=ym.split('-'), r=Number(yp[0])-2018, m=Number(yp[1]);
   var o=_hinodeXlsxOpen(TPL_KOUKI_GO_B64), xml=o.xml;
   xml=_setXlsxCellText(xml,'J3',p.symbol||'');
@@ -3125,7 +3154,7 @@ function linkExcelShinseisho(ym){
   xml=_setXlsxCellText(xml,'X187',m+'月'); // 施術日カレンダー欄の月表示（固定されていたため対象月に連動させる）
   xml=_setXlsxCellText(xml,'J82','初検料（１はり　２きゅう　３はりきゅう併用）');
   xml=_setXlsxCellText(xml,'BF82','円');
-  xml=_setXlsxCellText(xml,'DC67',c.count+'日');
+  xml=_setXlsxCellText(xml,'DC67',dates.length+'日');   // c.countではなく実際にこの申請書へ載せる日数（利用証後期の24回超分も含む）
   xml=_setXlsxCellText(xml,'DO67','新　規　・　継続');
   xml=_setXlsxCellHighlight(xml,'DO67','新　規　・　継続','継続');
   _hinodeAddOvalPartial(o.files,'DO67','EX71',0.60,0.99);
