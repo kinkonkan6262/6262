@@ -625,6 +625,8 @@ const KUBUN_CODES = ['r','t','k','b','c'];
 function kubunCodesFor(ins){
   if(ins==='社保') return ['r'];
   if(ins==='国保') return ['r','t','b'];
+  if(ins==='後期'||ins==='利用証後期'||ins==='後期助成後') return ['r','k','c'];   // 後期高齢は後券のみ（前券は矛盾するため出さない）
+  if(ins==='利用証一般') return ['r','t','b'];                                     // 一般利用券は前券のみ
   return KUBUN_CODES;
 }
 function kubunLabelFor(ins, code){
@@ -1041,9 +1043,10 @@ function loadRecord(){
       +`<p class="hint" style="margin:0 0 8px">既定は${kubunLabelFor(p.ins,defaultKubun(p.ins))}。${kCodes.length>1?kCodes.map(c=>kubunLabelFor(p.ins,c)).join('／')+'に切替できます。':''}</p>`;
     rec.dates.forEach(d=>{
       const k=kubunOf(rec,d,p);
+      const dayCodes=kCodes.includes(k)? kCodes : kCodes.concat([k]);   // 旧データの区分も見えるように残す
       kubunUI+=`<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;flex-wrap:wrap">
         <span style="width:46px;text-align:right">${d}日</span>`
-        +kCodes.map(code=>`<button class="btn sm ${k===code?'primary':''}" onclick="setKubun('${pid}','${ym}',${d},'${code}')">${kubunLabelFor(p.ins,code)}</button>`).join('')
+        +dayCodes.map(code=>`<button class="btn sm ${k===code?'primary':''}" onclick="setKubun('${pid}','${ym}',${d},'${code}')">${kubunLabelFor(p.ins,code)}</button>`).join('')
         +'</div>';
     });
     kubunUI+='</div>';
@@ -1279,7 +1282,8 @@ function renderHonjitsu(){
     let kubunCell;
     if(hasKubun(p.ins) && on){
       const k=kubunOf(rec,day,p);
-      const kCodes=kubunCodesFor(p.ins);
+      var kCodes=kubunCodesFor(p.ins);
+      if(kCodes.indexOf(k)<0) kCodes=kCodes.concat([k]);   // 旧データの区分も見えるように残す
       kubunCell = kCodes.length>1
         ? '<select onchange="hjSetKubun(\''+p.id+'\',this.value)" style="padding:4px;border:1px solid #c4ced8;border-radius:6px">'
           +kCodes.map(code=>'<option value="'+code+'"'+(k===code?' selected':'')+'>'+kubunLabelFor(p.ins,code)+'</option>').join('')
