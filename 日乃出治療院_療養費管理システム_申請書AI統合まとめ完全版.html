@@ -589,19 +589,11 @@ function calc(p, ym){
     out.unit = R.riyou_ippan; out.juts = R.riyou_ippan*n;
     out.total = out.juts; out.burden=0; out.seikyu = out.juts;
   } else if(p.ins==='利用証後期' || p.ins==='後期助成後'){
-    // 後券（利用券 後期）として数える日だけを計上
+    // 後券（利用券 後期）として数える日（年度24回まで）だけを計上。
+    // 25回目以降はkoukiExcessDates側で⑧個人申請用として別に扱うため、ここには含めない
     const n = koukiDates(rec,p).length; out.count = n;
     out.unit = R.riyou_kouki; out.juts = R.riyou_kouki*n;
     out.total = out.juts; out.burden=0; out.seikyu = out.juts;
-    // 年度24回を超えた分はryoyoDates側に回っているので、通常の療養費として別枠で加算する
-    const rDates = ryoyoDates(rec,p).filter(d=>!koukiDates(rec,p).includes(d));
-    if(rDates.length){
-      const runit=(p.tech==='1')?R.juts1:R.juts2;
-      const rjuts=runit*rDates.length;
-      const rburden=Math.round(rjuts*((p.burden||0)/10));
-      out.excessRyoCount=rDates.length; out.excessRyoSeikyu=rjuts-rburden;
-      out.seikyu += out.excessRyoSeikyu;
-    }
   } else if(p.ins==='生保'){
     out.unit = R.juts1; out.juts = R.juts1*cnt;
     out.shokenFee = shoken ? R.shoken_seiho : 0;
@@ -712,16 +704,13 @@ function koukiExcessDates(rec, p){
   const withinQuota = koukiDates(rec, p);
   return all.filter(d=>withinQuota.indexOf(d)<0);
 }
-/* 療養費として数える日（療・療＋前券・療＋後券、＋後期高齢の年度24回を超えた後券） */
+/* 療養費として数える日（療・療＋前券・療＋後券）。
+   後券のみ（k）の日は年度24回以内なら⑦、25回目以降はkoukiExcessDatesで⑧に回すため、
+   どちらの場合もここには含めない（同じ日を⑩療養費と後期のどちらかで二重計上しないため） */
 function ryoyoDates(rec, p){
   if(!rec) return [];
   if(!p || !hasKubun(p.ins)) return rec.dates.slice();
-  let base = rec.dates.filter(d=>{ const k=kubunOf(rec,d,p); return k==='r'||k==='b'||k==='c'; });
-  if(rec.ym && _hinodeIsKoukiFamily(p.ins)){
-    const withinQuota=koukiDates(rec,p);
-    const excessK = rec.dates.filter(d=>kubunOf(rec,d,p)==='k' && withinQuota.indexOf(d)<0);
-    base = base.concat(excessK);
-  }
+  const base = rec.dates.filter(d=>{ const k=kubunOf(rec,d,p); return k==='r'||k==='b'||k==='c'; });
   return base.slice().sort((a,b)=>a-b);
 }
 /* 前券（利用券 一般）として数える日（前券・療＋前券） */
@@ -1165,12 +1154,11 @@ function renderNyCalc(p, ym){
     <div class="line"><span>単価</span><span>${yen(c.unit)}/回</span></div>
     <div class="line"><span>施術料</span><span>${yen(c.juts)}</span></div>`;
   if(c.shokenFee) html+=`<div class="line"><span>初検料</span><span>${yen(c.shokenFee)}</span></div>`;
-  if(c.excessRyoCount) html+=`<div class="line"><span>${c.count?'うち':''}年度24回超（療養費扱い ${c.excessRyoCount}回）</span><span>${yen(c.excessRyoSeikyu)}</span></div>`;
   if(isRyoyo(p.ins)){
     html+=`<div class="line"><span>合計</span><span>${yen(c.total)}</span></div>
       <div class="line"><span>一部負担(${p.burden}割)</span><span>${yen(c.burden)}</span></div>`;
   }
-  const totalLabel = isRyoyo(p.ins) ? '請求額' : ((c.excessRyoCount && !c.count) ? '療養費請求額（24回超）' : c.label+'額');
+  const totalLabel = isRyoyo(p.ins) ? '請求額' : c.label+'額';
   html+=`<div class="line total"><span>${totalLabel}</span><span>${yen(c.seikyu)}</span></div>`;
   box.innerHTML=html;
 }
@@ -1197,13 +1185,14 @@ function renderKubunSummary(p, ym){
   const R=DB.settings.rates;
   const rows=[]; let base=0;
   if(hasKubun(p.ins)){
-    const rd=ryoyoDates(rec,p), id=ippanDates(rec,p), kd=koukiDates(rec,p);
-    const rAmt=ryoAmount(p,ym), iAmt=id.length*R.riyou_ippan, kAmt=kd.length*R.riyou_kouki;
+    const rd=ryoyoDates(rec,p), id=ippanDates(rec,p), kd=koukiDates(rec,p), ked=koukiExcessDates(rec,p);
+    const rAmt=ryoAmount(p,ym), iAmt=id.length*R.riyou_ippan, kAmt=kd.length*R.riyou_kouki, keAmt=ked.length*R.riyou_kouki;
     if(rd.length) rows.push(['療（療養費）', rd.length+'回', rAmt]);
     if(id.length) rows.push(['前券（利用券 一般）', id.length+'日', iAmt]);
     if(kd.length) rows.push(['後券（利用券 後期）', kd.length+'日', kAmt]);
+    if(ked.length) rows.push(['後券（年度25回目以降・個人申請用）', ked.length+'日', keAmt]);
     if(!rows.length) rows.push([insLabel(p.ins), '0回', 0]);
-    base = rAmt + iAmt + kAmt;
+    base = rAmt + iAmt + kAmt + keAmt;
   } else {
     const c=calc(p,ym);
     rows.push([c.label, c.count+((isRyoyo(p.ins)||p.ins==='生保')?'回':'日'), c.seikyu]);
@@ -1223,7 +1212,8 @@ function renderKubunSummary(p, ym){
 function tedashiBase(p, ym){
   const R=DB.settings.rates; const rec=getRecord(p.id,ym);
   if(hasKubun(p.ins)){
-    return ryoAmount(p,ym) + ippanDates(rec,p).length*R.riyou_ippan + koukiDates(rec,p).length*R.riyou_kouki;
+    return ryoAmount(p,ym) + ippanDates(rec,p).length*R.riyou_ippan
+      + koukiDates(rec,p).length*R.riyou_kouki + koukiExcessDates(rec,p).length*R.riyou_kouki;
   }
   return calc(p,ym).seikyu;
 }
@@ -1236,12 +1226,14 @@ function dayTotal(p, ym, d){
   if(on){
     if(hasKubun(p.ins)){
       const k=kubunOf(rec,d,p);
-      // 後期高齢は年度24回まで後券。それ以降のkタグ日は助成対象外＝療養費として扱う（koukiDatesと一致させる）
+      // 後期高齢は年度24回まで後券（⑦）。25回目以降は⑧個人申請用に回す（koukiDates/koukiExcessDatesと一致させる）
       const inKouki = (k==='k'||k==='c') && koukiDates(rec,p).includes(d);
-      const asRyo = k==='r'||k==='b'||k==='c'||(k==='k'&&!inKouki);
+      const inKoukiExcess = (k==='k'||k==='c') && !inKouki;
+      const asRyo = k==='r'||k==='b'||k==='c';
       if(asRyo){ const u=(p.tech==='1'?R.juts1:R.juts2); parts.push(['療（施術料）',u]); sum+=u; }
       if(k==='t'||k==='b'){ parts.push(['前券（利用券 一般）',R.riyou_ippan]); sum+=R.riyou_ippan; }
       if(inKouki){ parts.push(['後券（利用券 後期）',R.riyou_kouki]); sum+=R.riyou_kouki; }
+      else if(inKoukiExcess){ parts.push(['後券（年度25回目以降・個人申請用）',R.riyou_kouki]); sum+=R.riyou_kouki; }
     } else if(isRyoyo(p.ins)){ const u=(p.tech==='1'?R.juts1:R.juts2); parts.push(['療養費（施術料）',u]); sum+=u; }
     else if(p.ins==='後期助成後'){ parts.push(['助成',R.riyou_kouki]); sum+=R.riyou_kouki; }
     else if(p.ins==='生保'){ parts.push(['施術料',R.juts1]); sum+=R.juts1; }
