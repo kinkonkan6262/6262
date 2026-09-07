@@ -3154,9 +3154,11 @@ function linkExcelShinseisho(ym){
   xml=_setXlsxCellText(xml,'DC67',dates.length+'日');   // c.countではなく実際にこの申請書へ載せる日数（利用証後期の24回超分も含む）
   xml=_setXlsxCellText(xml,'DO67','新　規　・　継続');
   xml=_setXlsxCellHighlight(xml,'DO67','新　規　・　継続','継続');
-  _hinodeAddOvalPartial(o.files,'DO67','EX71',0.60,0.99);
+  var seikyuFrac=_hinodeHighlightFrac('新　規　・　継続','継続');
+  if(seikyuFrac) _hinodeAddOvalPartial(o.files,'DO67','EX71',seikyuFrac[0],seikyuFrac[1]);
   xml=_setXlsxCellHighlight(xml,'DO77','継続・治癒・中止・転医','継続');
-  _hinodeAddOvalPartial(o.files,'DO77','EX81',0.01,0.23);
+  var tenkiFrac=_hinodeHighlightFrac('継続・治癒・中止・転医','継続');
+  if(tenkiFrac) _hinodeAddOvalPartial(o.files,'DO77','EX81',tenkiFrac[0],tenkiFrac[1]);
   xml=_setXlsxCellHighlight(xml,'CJ47','（１．業務上　２．第三者行為　③その他（ 　　　　　　　　））','③その他');
 
   /* ---- 性別（選択側を赤字太字） ---- */
