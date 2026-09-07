@@ -3041,6 +3041,17 @@ function _hinodeAddOvalPartial(files, mergeFromRef, mergeToRef, fracStart, fracE
   xml = xml.replace('</xdr:wsDr>', _hinodeOvalShapeXmlRC(c1, a.r, c2, b.r+1) + '</xdr:wsDr>');
   files[path] = _strToU8(xml);
 }
+/* fullText中のhighlightTextの位置を、全角=2・半角=1の幅換算で0〜1のフラクションに変換する。
+   _setXlsxCellHighlightで赤字にした範囲と丸の位置を必ず一致させるために使う */
+function _hinodeHighlightFrac(fullText, highlightText){
+  var idx = fullText.indexOf(highlightText);
+  if(idx<0) return null;
+  var total = _hinodeTextWidth(fullText);
+  if(!total) return null;
+  var before = _hinodeTextWidth(fullText.slice(0,idx));
+  var within = _hinodeTextWidth(highlightText);
+  return [before/total, (before+within)/total];
+}
 /* セルごとの実際のフォント（テンプレート原本を基に指定。Excelで確実に赤字反映させるため） */
 var _hinodeCellFont = {
   K23:{n:'ＭＳ 明朝',s:10},
@@ -3166,12 +3177,11 @@ function linkExcelShinseisho(ym){
   }
 
   /* ---- 一部負担金（１割・２割・３割） ---- */
-  var burdenParts=[1,2,3].map(function(n){ return (n===Number(p.burden)) ? (n+'　割') : (n+'　割'); });
-  var burdenFull='一部負担金（'+burdenParts.join('・')+'）';
+  var burdenFull='一部負担金（1　割・2　割・3　割）';
   var burdenSel=Number(p.burden)+'　割';
   xml=_setXlsxCellHighlight(xml,'J177',burdenFull,burdenSel);
-  var burdenFracMap={1:[0.221,0.356],2:[0.465,0.600],3:[0.708,0.833]};
-  var bf=burdenFracMap[Number(p.burden)];
+  // 赤字にした範囲（全角=2・半角=1の幅換算）と完全に同じ位置に丸を描く
+  var bf=_hinodeHighlightFrac(burdenFull, burdenSel);
   if(bf) _hinodeAddOvalPartial(o.files,'J177','BE181',bf[0],bf[1]);
 
   /* ---- 施術の種類（1術／2術）と回数 ---- */
