@@ -2904,9 +2904,9 @@ function linkExcelKoukiGo(ym){
   var ryoDates=_hinodePatientDates(p,ym,'ryoyo'), hasRyo=ryoDates.length>0;
   xml=_setXlsxCellHighlight(xml,'K23','有  ・  無', hasRyo?'有':'無');
   // 「有」のときは、様式の記入上の注意どおり「はり・きゅう」欄の施術日に○を付ける。
-  // はり・きゅうを行った日そのものを示す欄なので、券の区分に関係なくその月の施術日すべてに付ける
+  // 療養費（療・療＋前券・療＋後券）として数えた日にだけ付ける（券のみの日には付けない）
   if(hasRyo){
-    _hinodeMarkHariKyuDays(o.files, _hinodePatientDates(p,ym));
+    _hinodeMarkHariKyuDays(o.files, ryoDates);
     xml=_setXlsxCellText(xml,'H30',_hinodeInjuryParts(p.injury).sho||'');   // はり・きゅう欄の病名（記入例：頚腕症候群）
   }
   _hinodeXlsxSave(o.files,xml,'⑧後期高齢（後）明細書_'+p.name+'_記入済み.xlsx');
@@ -2950,8 +2950,8 @@ function linkExcelRiyouIppan(ym){
   var ryoDates=_hinodePatientDates(p,ym,'ryoyo'), hasRyo=ryoDates.length>0;
   xml=_setXlsxCellHighlight(xml,'K23','有  ・  無', hasRyo?'有':'無');
   // 「有」のときは、様式の記入上の注意どおり「はり・きゅう」欄の施術日に○を付ける。
-  // はり・きゅうを行った日そのものを示す欄なので、券の区分に関係なくその月の施術日すべてに付ける
-  if(hasRyo) _hinodeMarkHariKyuDays(o.files, _hinodePatientDates(p,ym));
+  // 療養費（療・療＋前券・療＋後券）として数えた日にだけ付ける（券のみの日には付けない）
+  if(hasRyo) _hinodeMarkHariKyuDays(o.files, ryoDates);
   _hinodeXlsxSave(o.files,xml,'⑨利用券一般明細書_'+p.name+'_記入済み.xlsx');
   toast('⑨'+p.name+'　利用券一般明細書Excel出力（'+cnt+'回 '+_yen(amt)+'円）'+_hinodeMissing(p,['addr','birth','kofuNo']));
 }
