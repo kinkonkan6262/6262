@@ -3041,16 +3041,25 @@ function _hinodeAddOvalPartial(files, mergeFromRef, mergeToRef, fracStart, fracE
   xml = xml.replace('</xdr:wsDr>', _hinodeOvalShapeXmlRC(c1, a.r, c2, b.r+1) + '</xdr:wsDr>');
   files[path] = _strToU8(xml);
 }
-/* fullText中のhighlightTextの位置を、全角=2・半角=1の幅換算で0〜1のフラクションに変換する。
-   _setXlsxCellHighlightで赤字にした範囲と丸の位置を必ず一致させるために使う */
-function _hinodeHighlightFrac(fullText, highlightText){
+/* fullText中のhighlightTextの位置を、マージセル内でのフラクション[0,1]に変換する。
+   これらの選択肢セルはすべて中央揃え（horizontal:center）なので、文字列全体の幅が
+   マージ幅いっぱいに収まっているとは限らない。マージの列数（mergeCols）を渡すと、
+   文字列をマージ内で中央揃えしたときの実際の位置（左右の余白を考慮した位置）を返す。
+   渡さない場合は文字列の幅だけで比例配分する（従来どおり）。
+   全角=2・半角=1の幅換算。_setXlsxCellHighlightで赤字にした範囲と丸の位置を
+   必ず一致させるために使う */
+function _hinodeHighlightFrac(fullText, highlightText, mergeCols){
   var idx = fullText.indexOf(highlightText);
   if(idx<0) return null;
-  var total = _hinodeTextWidth(fullText);
-  if(!total) return null;
+  var textTotal = _hinodeTextWidth(fullText);
+  if(!textTotal) return null;
   var before = _hinodeTextWidth(fullText.slice(0,idx));
   var within = _hinodeTextWidth(highlightText);
-  return [before/total, (before+within)/total];
+  if(mergeCols){
+    var pad = Math.max(0, (mergeCols-textTotal)/2);
+    return [(pad+before)/mergeCols, (pad+before+within)/mergeCols];
+  }
+  return [before/textTotal, (before+within)/textTotal];
 }
 /* セルごとの実際のフォント（テンプレート原本を基に指定。Excelで確実に赤字反映させるため） */
 var _hinodeCellFont = {
@@ -3154,10 +3163,10 @@ function linkExcelShinseisho(ym){
   xml=_setXlsxCellText(xml,'DC67',dates.length+'日');   // c.countではなく実際にこの申請書へ載せる日数（利用証後期の24回超分も含む）
   xml=_setXlsxCellText(xml,'DO67','新　規　・　継続');
   xml=_setXlsxCellHighlight(xml,'DO67','新　規　・　継続','継続');
-  var seikyuFrac=_hinodeHighlightFrac('新　規　・　継続','継続');
+  var seikyuFrac=_hinodeHighlightFrac('新　規　・　継続','継続',36);
   if(seikyuFrac) _hinodeAddOvalPartial(o.files,'DO67','EX71',seikyuFrac[0],seikyuFrac[1]);
   xml=_setXlsxCellHighlight(xml,'DO77','継続・治癒・中止・転医','継続');
-  var tenkiFrac=_hinodeHighlightFrac('継続・治癒・中止・転医','継続');
+  var tenkiFrac=_hinodeHighlightFrac('継続・治癒・中止・転医','継続',36);
   if(tenkiFrac) _hinodeAddOvalPartial(o.files,'DO77','EX81',tenkiFrac[0],tenkiFrac[1]);
   xml=_setXlsxCellHighlight(xml,'CJ47','（１．業務上　２．第三者行為　③その他（ 　　　　　　　　））','③その他');
 
@@ -3182,8 +3191,8 @@ function linkExcelShinseisho(ym){
   var burdenFull='一部負担金（1　割・2　割・3　割）';
   var burdenSel=Number(p.burden)+'　割';
   xml=_setXlsxCellHighlight(xml,'J177',burdenFull,burdenSel);
-  // 赤字にした範囲（全角=2・半角=1の幅換算）と完全に同じ位置に丸を描く
-  var bf=_hinodeHighlightFrac(burdenFull, burdenSel);
+  // セルは中央揃えなので、マージ幅(48列)の中で文字列を中央に置いたときの位置に丸を描く
+  var bf=_hinodeHighlightFrac(burdenFull, burdenSel, 48);
   if(bf) _hinodeAddOvalPartial(o.files,'J177','BE181',bf[0],bf[1]);
 
   /* ---- 施術の種類（1術／2術）と回数 ---- */
