@@ -3855,23 +3855,70 @@ function downloadJudoShinseishoBlank(){
   _download(_b64ToU8(TPL_JUDO_SHINSEISHO_BLANK_B64), '柔道整復施術療養費支給申請書_様式第５号_白紙.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   toast('様式第５号（白紙）をダウンロードしました');
 }
-/* 様式第５号（柔道整復施術療養費支給申請書）へ、確実に位置を特定できた項目
-   （施術所情報・初検料・合計・一部負担金・請求金額・保険種別の丸）だけを
-   実物Excelへ差し込む。負傷名・受診者氏名・住所・部位別の整復料・往療料・
-   保険者番号・元号年月日など、1文字ずつの枠取り（OCR用）になっている項目は
-   位置を誤ると様式が崩れるため差し込みを行わず、白紙のまま残す（既存の
-   支給申請書Excelの内容を見ながら手書きしてください） */
+/* 様式第５号（柔道整復施術療養費支給申請書）へ、⑩療養費支給申請書と同じ
+   考え方で、位置を特定できた項目を実物Excelへできる限り差し込む。
+   選択肢（性別・元号・保険種別など）は⑩と同様「対象の文字を太字下線で
+   目立たせる」方式で表現する。負傷年月日・初検年月日など1マスずつの
+   元号年月日ボックス（(1)〜(5)の各行）は、様式内で同じ形の枠が
+   繰り返し使われており実物での位置確認ができないため、誤って様式を
+   崩さないよう差し込みを見送っている */
 function linkExcelJudoShinseisho(pid, ym){
   const p=getJudoPatient(pid); if(!p) return;
+  const rec=getJudoRecord(p.id, ym) || {};
   const c=judoCalc(p, ym);
-  const cl=DB.settings.clinic;
+  const cl=DB.settings.clinic, bk=DB.settings.bank;
   const files=fflate.unzipSync(_b64ToU8(TPL_JUDO_SHINSEISHO_BLANK_B64));
   let xml=_u8ToStr(files['xl/worksheets/sheet1.xml']);
+  const yp=ym.split('-'), wy=Number(yp[0])-2018, wm=Number(yp[1]);
+
+  /* ---- 表題・対象年月 ---- */
+  xml=_setXlsxCellText(xml,'E3','柔 道 整 復 施 術 療 養 費 支 給 申 請 書\n令和　'+(wy===1?'元':wy)+'　年　'+wm+'　月分');
+
+  /* ---- 保険者番号（8桁を1マスずつ）・記号番号 ---- */
+  const insNoDigits=(p.insNo||'').replace(/[^0-9]/g,'').padStart(8,' ').slice(-8);
+  const insNoCols=['P','S','V','Y','AB','AE','AH','AK'];
+  for(let ni=0; ni<8; ni++){ const nch=insNoDigits.charAt(ni); if(nch.trim()!=='') xml=_setXlsxCellText(xml,insNoCols[ni]+'5',nch); }
+  xml=_setXlsxCellText(xml,'CK5',p.symbol||'');
+
+  /* ---- 単併区分（常に「1.単独」）・本家区分・給付割合 ---- */
+  xml=_setXlsxCellHighlight(xml,'CT8','1.単独タンドク','1.単独タンドク');
+  if(p.relation==='家族') xml=_setXlsxCellHighlight(xml,'DB12','6.家族','6.家族');
+  else xml=_setXlsxCellHighlight(xml,'DB8','2.本人','2.本人');
+  const kyufu=10-(Number(p.burden)||0);
+  if(kyufu>=9) xml=_setXlsxCellHighlight(xml,'DP8','10・９', kyufu===10?'10':'９');
+  else xml=_setXlsxCellHighlight(xml,'DP11','８・７', kyufu===8?'８':'７');
+
+  /* ---- 受診者情報（氏名・生年月日・性別） ---- */
+  xml=_setXlsxCellText(xml,'E21',p.name||'');
+  const be=_hinodeEra(p.birth);
+  if(be){
+    xml=_setXlsxCellText(xml,'AY23',(be.year===1?'元':be.year)+'　年　'+be.month+'　月　'+be.day+'　日');
+    if(be.era==='令和') xml=_setXlsxCellHighlight(xml,'AX21',' 5令',' 5令');
+    else if(be.era==='昭和') xml=_setXlsxCellHighlight(xml,'AP23','3 昭 4 平','3 昭');
+    else if(be.era==='平成') xml=_setXlsxCellHighlight(xml,'AP23','3 昭 4 平','4 平');
+    else if(be.era==='大正') xml=_setXlsxCellHighlight(xml,'AP21','1 明 2 大メイダイ','2 大');
+    else if(be.era==='明治') xml=_setXlsxCellHighlight(xml,'AP21','1 明 2 大メイダイ','1 明');
+  }
+  if(p.gender==='男') xml=_setXlsxCellHighlight(xml,'AL21','1 男オトコ','1 男オトコ');
+  else if(p.gender==='女') xml=_setXlsxCellHighlight(xml,'AL23','2 女オンナ','2 女オンナ');
+
+  /* ---- 負傷名(1) ---- */
+  if(p.injury) xml=_setXlsxCellText(xml,'E26','(1)　'+p.injury+(p.injuryPart?'（'+p.injuryPart+'）':''));
+
+  /* ---- 施術証明欄（施術所情報） ---- */
   xml=_setXlsxCellText(xml,'L58','所在地〒'+(cl.zip||'')+'　'+(cl.addr||''));
   xml=_setXlsxCellText(xml,'L59','名　称　'+(cl.name||''));
   xml=_setXlsxCellText(xml,'L60','電　話　'+(cl.tel||''));
   xml=_setXlsxCellText(xml,'L62','氏　名　'+(cl.manager||'')+'　　㊞');
+
+  /* ---- 料金（初検料・再検料・整復料・往療料・施術情報提供料・温罨法料・電療料） ---- */
   xml=_setXlsxCellText(xml,'E33','初検料　'+(c.shokenFee?num(c.shokenFee):'')+'円');
+  xml=_setXlsxCellText(xml,'AA34','再検料　'+(c.saikenFee?num(c.saikenFee):''));
+  xml=_setXlsxCellText(xml,'AC35','(1)　'+(c.jutsu?num(c.jutsu):'')+'円');
+  if(c.ohryoFee) xml=_setXlsxCellText(xml,'AU33','往療料　'+(rec.ohryoCount||0)+'回　'+num(c.ohryoFee)+'円');
+  if(c.infoFee) xml=_setXlsxCellText(xml,'CR33','施術情報提供料　'+num(c.infoFee)+'円');
+  if(c.onshitsuFee) xml=_setXlsxCellText(xml,'BF37','　'+(rec.onshitsuCount||0)+'回　'+num(c.onshitsuFee)+'円');
+  if(c.denryoFee) xml=_setXlsxCellText(xml,'BT37','　'+(rec.denryoCount||0)+'回　'+num(c.denryoFee)+'円');
   xml=_setXlsxCellText(xml,'DT44',num(c.total)+'円');
   xml=_setXlsxCellText(xml,'DT45',num(c.burden)+'円');
   xml=_setXlsxCellText(xml,'DT46',num(c.seikyu)+'円');
@@ -3880,11 +3927,23 @@ function linkExcelJudoShinseisho(pid, ym){
     const label={CB8:'1.協キョウ',CJ8:'3.共',CB11:'4.国コク',CJ11:'6.後期コウキ'}[hokenCell];
     xml=_setXlsxCellHighlight(xml,hokenCell,label,label);
   }
+
+  /* ---- 支払機関欄（振込先） ---- */
+  xml=_setXlsxCellHighlight(xml,'E50','1:振込       ','1:振込       ');
+  xml=_setXlsxCellText(xml,'CR49',cl.regNo||'');
+  if((bk.kind||'').indexOf('金庫')>=0 || (bk.kind||'').indexOf('信金')>=0){
+    xml=_setXlsxCellHighlight(xml,'O51','2:当座 ','2:当座 ');
+    xml=_setXlsxCellText(xml,'W51','　　'+(bk.name||'')+'　金庫　'+(bk.branch||'')+'　支店');
+  } else {
+    xml=_setXlsxCellHighlight(xml,'O50','1:普通 ','1:普通 ');
+    xml=_setXlsxCellText(xml,'W50','　　'+(bk.name||'')+'　銀行　'+(bk.branch||'')+'　本店');
+  }
+
   files['xl/worksheets/sheet1.xml']=_strToU8(xml);
   _hinodeXlsxScrubCoreProps(files, cl.manager||cl.name);
   const bytes=fflate.zipSync(files,{level:6});
   _download(bytes, p.name+'_柔道整復施術療養費支給申請書_様式第５号_'+ym+'.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-  toast(p.name+'　様式第５号Excel出力（施術所情報・初検料・合計金額・保険種別のみ差し込み。負傷名・受診者情報・部位別料金・施術日等は白紙のままです）');
+  toast(p.name+'　様式第５号Excel出力（受診者情報・負傷名(1)・料金・保険種別・振込先まで差し込み。負傷年月日等の元号ボックスと(2)〜(5)以降の負傷は白紙です）');
 }
 
 </script>
