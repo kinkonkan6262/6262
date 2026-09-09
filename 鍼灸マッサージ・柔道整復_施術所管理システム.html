@@ -442,7 +442,9 @@ const DEFAULT_SETTINGS = {
     bui2:840,         // 施術料　2部位目（目安）
     bui3:380,         // 施術料　3部位目・逓減（目安）
     onshitsu:80,      // 温罨法料（目安）
-    denryo:90         // 電療料（目安）
+    denryo:90,        // 電療料（目安）
+    ohryo:2650,       // 往療料（目安・片道4km未満の目安額。距離加算等は別途手入力してください）
+    info:250          // 施術情報提供料（目安）
   }
 };
 
@@ -1512,6 +1514,7 @@ function renderSettei(){
       ${F('初検料','judoRates.shoken')}${F('再検料','judoRates.saiken')}
       ${F('施術料　1部位目','judoRates.bui1')}${F('施術料　2部位目','judoRates.bui2')}${F('施術料　3部位目（逓減）','judoRates.bui3')}
       ${F('温罨法料','judoRates.onshitsu')}${F('電療料','judoRates.denryo')}
+      ${F('往療料','judoRates.ohryo')}${F('施術情報提供料','judoRates.info')}
     </div>
     <div style="margin-top:16px;display:flex;gap:10px">
       <button class="btn primary" onclick="saveSettei()">設定を保存</button>
@@ -1530,7 +1533,7 @@ function saveSettei(){
    'rates.shoken_heiyou','rates.shoken_1','rates.shoken_seiho','rates.juts2','rates.juts1',
    'rates.riyou_ippan','rates.riyou_kouki',
    'judoRates.shoken','judoRates.saiken','judoRates.bui1','judoRates.bui2','judoRates.bui3',
-   'judoRates.onshitsu','judoRates.denryo'].forEach(p=>{
+   'judoRates.onshitsu','judoRates.denryo','judoRates.ohryo','judoRates.info'].forEach(p=>{
     const el=document.getElementById('set_'+p); if(!el) return;
     let v=el.value; if(p.startsWith('rates.')||p.startsWith('judoRates.')) v=Number(v)||0;
     setDeep(DB.settings,p,v);
@@ -3281,7 +3284,7 @@ function getJudoPatient(id){ return DB.judo.patients.find(p=>p.id===id); }
 function getJudoRecord(pid, ym){ return DB.judo.records.find(r=>r.patientId===pid && r.ym===ym); }
 function ensureJudoRecord(pid, ym){
   let r=getJudoRecord(pid, ym);
-  if(!r){ r={patientId:pid, ym, dates:[], bui:{}, shoken:false, saikenCount:0, onshitsuCount:0, denryoCount:0}; DB.judo.records.push(r); }
+  if(!r){ r={patientId:pid, ym, dates:[], bui:{}, shoken:false, saikenCount:0, onshitsuCount:0, denryoCount:0, ohryoCount:0, infoCount:0}; DB.judo.records.push(r); }
   if(!r.bui) r.bui={};
   return r;
 }
@@ -3301,14 +3304,16 @@ function judoCalc(p, ym){
   const R=DB.settings.judoRates;
   const rec=getJudoRecord(p.id, ym);
   const cnt=rec? rec.dates.length : 0;
-  const out={count:cnt, jutsu:0, shokenFee:0, saikenFee:0, onshitsuFee:0, denryoFee:0, total:0, burden:0, seikyu:0};
+  const out={count:cnt, jutsu:0, shokenFee:0, saikenFee:0, onshitsuFee:0, denryoFee:0, ohryoFee:0, infoFee:0, total:0, burden:0, seikyu:0};
   if(!rec || cnt===0) return out;
   rec.dates.forEach(d=>{ out.jutsu += judoBuiUnit(rec.bui[d]||1); });
   out.shokenFee = rec.shoken ? R.shoken : 0;
   out.saikenFee = (Number(rec.saikenCount)||0)*R.saiken;
   out.onshitsuFee = (Number(rec.onshitsuCount)||0)*R.onshitsu;
   out.denryoFee = (Number(rec.denryoCount)||0)*R.denryo;
-  out.total = out.jutsu+out.shokenFee+out.saikenFee+out.onshitsuFee+out.denryoFee;
+  out.ohryoFee = (Number(rec.ohryoCount)||0)*R.ohryo;
+  out.infoFee = (Number(rec.infoCount)||0)*R.info;
+  out.total = out.jutsu+out.shokenFee+out.saikenFee+out.onshitsuFee+out.denryoFee+out.ohryoFee+out.infoFee;
   const rate=(p.burden||0)/10;
   out.burden = (p.ins==='生保') ? 0 : Math.round(out.total*rate);
   out.seikyu = out.total - out.burden;
@@ -3360,12 +3365,13 @@ function renderJudoMeibo(){
 function openJudoPatient(id){
   const p = id ? getJudoPatient(id) : {
     id:'', name:'', kana:'', gender:'', birth:'', ins:'国保', insNo:'', symbol:'',
-    addr:'', tel:'', burden:3, injury:'', injuryPart:'', injuryDate:'', note:''
+    addr:'', tel:'', burden:3, relation:'本人', insuredName:'',
+    injury:'', injuryPart:'', injuryCause:'', injuryDate:'', initialDate:'', outcome:'', note:''
   };
   const m=document.getElementById('modal');
   m.innerHTML=`<h3>${id?'柔道整復　患者の修正':'柔道整復　患者の追加'}</h3>
     <div class="grid2">
-      <div class="field"><label>氏名</label><input id="jf_name" value="${esc(p.name)}"></div>
+      <div class="field"><label>氏名（受診者）</label><input id="jf_name" value="${esc(p.name)}"></div>
       <div class="field"><label>フリガナ</label><input id="jf_kana" value="${esc(p.kana)}"></div>
       <div class="field"><label>保険種別</label>
         <select id="jf_ins">${JUDO_INS_ORDER.map(t=>`<option ${p.ins===t?'selected':''}>${t}</option>`).join('')}</select></div>
@@ -3376,11 +3382,22 @@ function openJudoPatient(id){
         <option ${p.gender==='男'?'selected':''}>男</option><option ${p.gender==='女'?'selected':''}>女</option></select></div>
       <div class="field"><label>生年月日</label><input type="date" id="jf_birth" value="${esc(p.birth)}"></div>
       <div class="field"><label>電話</label><input id="jf_tel" value="${esc(p.tel)}"></div>
+      <div class="field"><label>続柄</label>
+        <select id="jf_relation"><option ${p.relation==='本人'?'selected':''}>本人</option><option ${p.relation==='家族'?'selected':''}>家族</option></select></div>
+      <div class="field"><label>被保険者氏名（続柄が家族のとき）</label><input id="jf_insuredName" value="${esc(p.insuredName)}"></div>
+      <div class="field"><label>保険者番号</label><input id="jf_insNo" value="${esc(p.insNo)}"></div>
       <div class="field"><label>被保険者証 記号番号</label><input id="jf_symbol" value="${esc(p.symbol)}"></div>
       <div class="field" style="grid-column:1/3"><label>住所</label><input id="jf_addr" value="${esc(p.addr)}"></div>
       <div class="field"><label>負傷名</label><input id="jf_injury" placeholder="例：右足関節捻挫" value="${esc(p.injury)}"></div>
       <div class="field"><label>受傷部位</label><input id="jf_injuryPart" placeholder="例：右足関節" value="${esc(p.injuryPart)}"></div>
+      <div class="field"><label>負傷の原因</label><input id="jf_injuryCause" placeholder="例：階段を踏み外して転倒" value="${esc(p.injuryCause)}"></div>
       <div class="field"><label>受傷年月日</label><input type="date" id="jf_injuryDate" value="${esc(p.injuryDate)}"></div>
+      <div class="field"><label>初検年月日</label><input type="date" id="jf_initialDate" value="${esc(p.initialDate)}"></div>
+      <div class="field"><label>転帰</label>
+        <select id="jf_outcome"><option value="">－（施術継続中）</option>
+        <option ${p.outcome==='治癒'?'selected':''}>治癒</option>
+        <option ${p.outcome==='中止'?'selected':''}>中止</option>
+        <option ${p.outcome==='転医'?'selected':''}>転医</option></select></div>
       <div class="field" style="grid-column:1/3"><label>備考</label><input id="jf_note" value="${esc(p.note)}"></div>
     </div>
     <div class="modal-foot">
@@ -3392,8 +3409,10 @@ function openJudoPatient(id){
 function saveJudoPatient(id){
   const g=k=>document.getElementById('jf_'+k).value;
   const obj={ name:g('name').trim(), kana:g('kana').trim(), ins:g('ins'), gender:g('gender'),
-    birth:g('birth'), tel:g('tel'), addr:g('addr'), symbol:g('symbol'), burden:Number(g('burden')),
-    injury:g('injury'), injuryPart:g('injuryPart'), injuryDate:g('injuryDate'), note:g('note') };
+    birth:g('birth'), tel:g('tel'), addr:g('addr'), symbol:g('symbol'), insNo:g('insNo'), burden:Number(g('burden')),
+    relation:g('relation'), insuredName:g('insuredName'),
+    injury:g('injury'), injuryPart:g('injuryPart'), injuryCause:g('injuryCause'),
+    injuryDate:g('injuryDate'), initialDate:g('initialDate'), outcome:g('outcome'), note:g('note') };
   if(!obj.name){ toast('氏名を入力してください'); return; }
   if(id){ Object.assign(getJudoPatient(id), obj); }
   else { obj.id=judoUid(); DB.judo.patients.push(obj); }
@@ -3466,6 +3485,10 @@ function loadJudoRecord(){
             <input type="number" min="0" step="1" id="jny_onshitsu" value="${rec.onshitsuCount||0}" style="width:70px" onchange="setJudoCount('${pid}','${ym}','onshitsuCount')"></div>
           <div class="field" style="margin-bottom:0"><label>電療料　回数</label>
             <input type="number" min="0" step="1" id="jny_denryo" value="${rec.denryoCount||0}" style="width:70px" onchange="setJudoCount('${pid}','${ym}','denryoCount')"></div>
+          <div class="field" style="margin-bottom:0"><label>往療料　回数</label>
+            <input type="number" min="0" step="1" id="jny_ohryo" value="${rec.ohryoCount||0}" style="width:70px" onchange="setJudoCount('${pid}','${ym}','ohryoCount')"></div>
+          <div class="field" style="margin-bottom:0"><label>施術情報提供料　回数</label>
+            <input type="number" min="0" step="1" id="jny_info" value="${rec.infoCount||0}" style="width:70px" onchange="setJudoCount('${pid}','${ym}','infoCount')"></div>
         </div>
       </div>
       <div class="calc-box" id="jny_calc"></div>
@@ -3486,7 +3509,7 @@ function setJudoShoken(pid, ym){
 }
 function setJudoCount(pid, ym, field){
   const rec=ensureJudoRecord(pid, ym);
-  const idMap={saikenCount:'jny_saiken', onshitsuCount:'jny_onshitsu', denryoCount:'jny_denryo'};
+  const idMap={saikenCount:'jny_saiken', onshitsuCount:'jny_onshitsu', denryoCount:'jny_denryo', ohryoCount:'jny_ohryo', infoCount:'jny_info'};
   const el=document.getElementById(idMap[field]); if(!el) return;
   rec[field]=Math.max(0, Number(el.value)||0); save();
   renderJudoNyCalc(getJudoPatient(pid), ym);
@@ -3500,6 +3523,8 @@ function renderJudoNyCalc(p, ym){
     <div class="line"><span>再検料</span><span>${yen(c.saikenFee)}</span></div>
     <div class="line"><span>温罨法料</span><span>${yen(c.onshitsuFee)}</span></div>
     <div class="line"><span>電療料</span><span>${yen(c.denryoFee)}</span></div>
+    <div class="line"><span>往療料</span><span>${yen(c.ohryoFee)}</span></div>
+    <div class="line"><span>施術情報提供料</span><span>${yen(c.infoFee)}</span></div>
     <div class="line"><span>合計</span><span>${yen(c.total)}</span></div>
     <div class="line"><span>一部負担${p.ins==='生保'?'（公費全額）':'('+p.burden+'割)'}</span><span>${yen(c.burden)}</span></div>
     <div class="line total"><span>請求額</span><span>${yen(c.seikyu)}</span></div>`;
@@ -3513,7 +3538,7 @@ function renderJudoShukei(){
       <div class="field"><label>対象年月</label><input type="month" id="jskMonth" onchange="renderJudoShukeiBody()"></div>
       <button class="btn primary" onclick="exportJudoShukei(document.getElementById('jskMonth').value)">月次　請求集計表　Excel出力</button>
     </div>
-    <p class="hint" style="margin:0 0 10px">柔道整復（整骨院）の請求は全国共通の公的様式を実物Excelとして同梱していないため、内容を確認しやすい集計Excel・個人別明細Excelを出力します。正式な支給申請書の様式が必要な場合は、その様式にこの内容を転記してください。</p>
+    <p class="hint" style="margin:0 0 10px">柔道整復（整骨院）の支給申請書は、国保連・支払基金が指定する正式なOCR原本様式を実物Excelとして同梱していないため、標準的な支給申請書の項目に沿った個人別Excel（支給申請書）と、月次の請求集計Excelを出力します。提出前に必ずお使いの審査会・保険者の指定様式と照らし合わせて転記・確認してください。</p>
     <div id="jskBody"></div>`;
   const mEl=document.getElementById('jskMonth');
   if(!mEl.value) mEl.value=curYM();
@@ -3530,11 +3555,11 @@ function renderJudoShukeiBody(){
     return `<tr><td>${esc(p.name)}</td><td class="ctr"><span class="tag" style="background:#6d4c41">${esc(p.ins)}</span></td>
       <td class="num">${c.count}日</td><td class="num">${yen(c.total)}</td><td class="num">${yen(c.burden)}</td>
       <td class="num">${yen(c.seikyu)}</td>
-      <td class="ctr"><button class="btn sm primary" onclick="exportJudoMeisai('${p.id}','${ym}')">個人別Excel</button></td></tr>`;
+      <td class="ctr"><button class="btn sm primary" onclick="exportJudoMeisai('${p.id}','${ym}')">支給申請書Excel</button></td></tr>`;
   }).join('');
   body.innerHTML=`<table class="grid">
       <thead><tr><th>氏名</th><th class="ctr">保険種別</th><th class="ctr">施術日数</th>
-        <th class="ctr">費用額</th><th class="ctr">一部負担</th><th class="ctr">請求額</th><th class="ctr">個人別明細</th></tr></thead>
+        <th class="ctr">費用額</th><th class="ctr">一部負担</th><th class="ctr">請求額</th><th class="ctr">個人別支給申請書</th></tr></thead>
       <tbody>${rows}</tbody>
       <tfoot><tr style="font-weight:700"><td colspan="3">合計（${ps.length}名）</td>
         <td class="num">${yen(sumTotal)}</td><td class="num">${yen(sumBurden)}</td><td class="num">${yen(sumSeikyu)}</td><td></td></tr></tfoot>
@@ -3607,37 +3632,68 @@ function xlsxBuild(sheetName, rows, colWidths){
 function xlsxDownload(sheetName, rows, colWidths, filename){
   _download(xlsxBuild(sheetName, rows, colWidths), filename, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 }
-/* 個人別　柔道整復　施術費明細書（Excel） */
+/* 個人別　柔道整復施術療養費支給申請書（Excel・一般的な様式に準拠した自由書式）
+   ※国保連・支払基金が指定する正式なOCR様式の原本は同梱していません。
+     項目・計算内容は標準的な支給申請書に準じていますが、様式提出前に
+     必ずお使いの審査会・保険者の指定様式をご確認ください。 */
 function exportJudoMeisai(pid, ym){
   const p=getJudoPatient(pid); if(!p) return;
   const rec=getJudoRecord(pid, ym) || {dates:[],bui:{}};
   const c=judoCalc(p, ym);
-  const cl=DB.settings.clinic;
+  const cl=DB.settings.clinic, bk=DB.settings.bank;
   const rows=[
-    {cells:['柔道整復　施術費明細書'], bold:true},
-    {cells:['施術所名', cl.name||'']},
-    {cells:['対象年月', wareki(ym)+'分']},
-    {cells:['氏名', p.name, 'フリガナ', p.kana||'']},
-    {cells:['保険種別', p.ins, '一部負担割合', p.ins==='生保'?'公費全額':(p.burden+'割')]},
-    {cells:['負傷名', p.injury||'', '受傷部位', p.injuryPart||'']},
+    {cells:['柔道整復施術療養費支給申請書（明細）'], bold:true},
+    {cells:['※正式様式ではありません。提出前に指定様式へ転記・確認してください。']},
     {cells:[]},
+    {cells:['【施術所（申請者）情報】'], bold:true},
+    {cells:['施術管理者　登録記号番号', cl.regNo||'']},
+    {cells:['施術所名', cl.name||'']},
+    {cells:['所在地', cl.addr||'']},
+    {cells:['施術管理者氏名', cl.manager||'']},
+    {cells:['振込先金融機関', (bk.name||'')+'　'+(bk.kind||'')+'　'+(bk.branch||'')]},
+    {cells:['口座番号・名義', (bk.acctType||'普通')+'　'+(bk.acctNo||'')+'　'+(bk.holder||'')]},
+    {cells:[]},
+    {cells:['【被保険者・受診者情報】'], bold:true},
+    {cells:['保険種別', p.ins]},
+    {cells:['保険者番号', p.insNo||'']},
+    {cells:['被保険者証　記号番号', p.symbol||'']},
+    {cells:['続柄', p.relation||'本人']},
+    {cells:['被保険者氏名（家族のとき）', p.insuredName||'']},
+    {cells:['受診者（患者）氏名', p.name, 'フリガナ', p.kana||'']},
+    {cells:['生年月日', p.birth||'', '性別', p.gender||'']},
+    {cells:['住所', p.addr||'']},
+    {cells:['一部負担割合', p.ins==='生保'?'公費全額':(p.burden+'割')]},
+    {cells:[]},
+    {cells:['【負傷内容】'], bold:true},
+    {cells:['負傷名', p.injury||'']},
+    {cells:['受傷部位', p.injuryPart||'']},
+    {cells:['負傷の原因', p.injuryCause||'']},
+    {cells:['負傷年月日', p.injuryDate?_hinodeEraStr(p.injuryDate):'']},
+    {cells:['初検年月日', p.initialDate?_hinodeEraStr(p.initialDate):'']},
+    {cells:['転帰', p.outcome||'（施術継続中）']},
+    {cells:['対象年月', wareki(ym)+'分']},
+    {cells:[]},
+    {cells:['【施術内容・料金明細（日ごと）】'], bold:true},
     {cells:['施術日','部位数','施術料'], bold:true}
   ];
   rec.dates.slice().sort((a,b)=>a-b).forEach(d=>{
     rows.push({cells:[d+'日', (rec.bui[d]||1)+'部位', judoBuiUnit(rec.bui[d]||1)]});
   });
   rows.push({cells:[]});
-  rows.push({cells:['項目','金額'], bold:true});
+  rows.push({cells:['【料金集計】'], bold:true});
+  rows.push({cells:['実日数', c.count]});
   rows.push({cells:['施術料　小計', c.jutsu]});
   rows.push({cells:['初検料', c.shokenFee]});
   rows.push({cells:['再検料', c.saikenFee]});
   rows.push({cells:['温罨法料', c.onshitsuFee]});
   rows.push({cells:['電療料', c.denryoFee]});
+  rows.push({cells:['往療料', c.ohryoFee]});
+  rows.push({cells:['施術情報提供料', c.infoFee]});
   rows.push({cells:['費用額　合計', c.total], bold:true});
   rows.push({cells:['一部負担金', c.burden]});
-  rows.push({cells:['請求額', c.seikyu], bold:true});
-  xlsxDownload('明細書', rows, [16,12,12,14], p.name+'_柔道整復施術費明細書_'+ym+'.xlsx');
-  toast(p.name+'　明細書Excel出力（'+c.count+'日 '+yen(c.seikyu)+'）');
+  rows.push({cells:['支給金額（請求額）', c.seikyu], bold:true});
+  xlsxDownload('支給申請書', rows, [26,16,14,16], p.name+'_柔道整復施術療養費支給申請書_'+ym+'.xlsx');
+  toast(p.name+'　支給申請書Excel出力（'+c.count+'日 '+yen(c.seikyu)+'）');
 }
 /* 月次　柔道整復　請求集計表（Excel） */
 function exportJudoShukei(ym){
