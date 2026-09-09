@@ -2979,7 +2979,15 @@ var _hinodeCellFont = {
   AE77:{n:'ＭＳ 明朝',s:9}, AX77:{n:'ＭＳ 明朝',s:9}, BW77:{n:'ＭＳ 明朝',s:9},
   CU15:{n:'ＭＳ 明朝',s:9}, CU19:{n:'ＭＳ 明朝',s:9}, DD15:{n:'ＭＳ 明朝',s:9},
   DM13:{n:'ＭＳ 明朝',s:9}, DM16:{n:'ＭＳ 明朝',s:9}, DM19:{n:'ＭＳ 明朝',s:9},
-  DC202:{n:'ＭＳ 明朝',s:9}
+  DC202:{n:'ＭＳ 明朝',s:9},
+  /* 様式第５号（柔道整復） */
+  CB8:{n:'ＭＳ Ｐ明朝',s:10}, CF8:{n:'ＭＳ Ｐ明朝',s:10}, CJ8:{n:'ＭＳ Ｐ明朝',s:10},
+  CB11:{n:'ＭＳ Ｐ明朝',s:10}, CF11:{n:'ＭＳ Ｐ明朝',s:10}, CJ11:{n:'ＭＳ Ｐ明朝',s:7},
+  CT8:{n:'ＭＳ Ｐ明朝',s:9}, DB8:{n:'ＭＳ Ｐ明朝',s:9}, DB12:{n:'ＭＳ Ｐ明朝',s:9},
+  DP8:{n:'ＭＳ 明朝',s:9}, DP11:{n:'ＭＳ 明朝',s:9},
+  AL21:{n:'ＭＳ Ｐ明朝',s:9}, AL23:{n:'ＭＳ Ｐ明朝',s:9},
+  AP21:{n:'ＭＳ Ｐ明朝',s:9}, AP23:{n:'ＭＳ Ｐ明朝',s:9}, AX21:{n:'ＭＳ Ｐ明朝',s:9},
+  E50:{n:'ＭＳ 明朝',s:9}, O50:{n:'ＭＳ 明朝',s:9}, O51:{n:'ＭＳ 明朝',s:9}
 };
 var _hinodeDefaultFont = {n:'ＭＳ 明朝', s:11}; // 施術日マーク等の既定フォント
 /* 選択箇所を赤字・太字にする（手書きで丸を付けたのと同じ見た目を再現） */
@@ -3855,13 +3863,17 @@ function downloadJudoShinseishoBlank(){
   _download(_b64ToU8(TPL_JUDO_SHINSEISHO_BLANK_B64), '柔道整復施術療養費支給申請書_様式第５号_白紙.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   toast('様式第５号（白紙）をダウンロードしました');
 }
-/* 様式第５号（柔道整復施術療養費支給申請書）へ、⑩療養費支給申請書と同じ
+/* 様式第５号（柔道整復施術療養費支給申請書）へ、⑩療養費支給申請書と全く同じ
    考え方で、位置を特定できた項目を実物Excelへできる限り差し込む。
    選択肢（性別・元号・保険種別など）は⑩と同様「対象の文字を太字下線で
-   目立たせる」方式で表現する。負傷年月日・初検年月日など1マスずつの
-   元号年月日ボックス（(1)〜(5)の各行）は、様式内で同じ形の枠が
-   繰り返し使われており実物での位置確認ができないため、誤って様式を
-   崩さないよう差し込みを見送っている */
+   目立たせる」うえに、実物の丸囲みと同じ位置へ本物の楕円図形を描画する
+   （_hinodeAddOval／_hinodeAddOvalPartial、原本のセル結合範囲どおり）。
+   文字を書き込むセルは、原本を解析して得た実際のフォントサイズを
+   _setXlsxCellRichSizeで明示指定し、規定サイズへ差し替わってしまう
+   崩れを防いでいる。負傷年月日・初検年月日など1マスずつの元号年月日
+   ボックス（(1)〜(5)の各行）は、様式内で同じ形の枠が繰り返し使われて
+   おり実物での位置確認ができないため、誤って様式を崩さないよう
+   差し込みを見送っている */
 function linkExcelJudoShinseisho(pid, ym){
   const p=getJudoPatient(pid); if(!p) return;
   const rec=getJudoRecord(p.id, ym) || {};
@@ -3872,78 +3884,94 @@ function linkExcelJudoShinseisho(pid, ym){
   const yp=ym.split('-'), wy=Number(yp[0])-2018, wm=Number(yp[1]);
 
   /* ---- 表題・対象年月 ---- */
-  xml=_setXlsxCellText(xml,'E3','柔 道 整 復 施 術 療 養 費 支 給 申 請 書\n令和　'+(wy===1?'元':wy)+'　年　'+wm+'　月分');
+  xml=_setXlsxCellRichSize(xml,'E3','柔 道 整 復 施 術 療 養 費 支 給 申 請 書\n令和　'+(wy===1?'元':wy)+'　年　'+wm+'　月分',12,'ＭＳ ゴシック');
 
   /* ---- 保険者番号（8桁を1マスずつ）・記号番号 ---- */
   const insNoDigits=(p.insNo||'').replace(/[^0-9]/g,'').padStart(8,' ').slice(-8);
   const insNoCols=['P','S','V','Y','AB','AE','AH','AK'];
-  for(let ni=0; ni<8; ni++){ const nch=insNoDigits.charAt(ni); if(nch.trim()!=='') xml=_setXlsxCellText(xml,insNoCols[ni]+'5',nch); }
-  xml=_setXlsxCellText(xml,'CK5',p.symbol||'');
+  const insNoSizes=[10.5,14,14,14,14,14,14,14];
+  for(let ni=0; ni<8; ni++){ const nch=insNoDigits.charAt(ni); if(nch.trim()!=='') xml=_setXlsxCellRichSize(xml,insNoCols[ni]+'5',nch,insNoSizes[ni],'ＭＳ 明朝'); }
+  xml=_setXlsxCellRichSize(xml,'CK5',p.symbol||'',9,'ＭＳ 明朝');
 
-  /* ---- 単併区分（常に「1.単独」）・本家区分・給付割合 ---- */
+  /* ---- 単併区分（常に「1.単独」）・本家区分・給付割合（赤字太字＋実物の丸囲み） ---- */
   xml=_setXlsxCellHighlight(xml,'CT8','1.単独タンドク','1.単独タンドク');
-  if(p.relation==='家族') xml=_setXlsxCellHighlight(xml,'DB12','6.家族','6.家族');
-  else xml=_setXlsxCellHighlight(xml,'DB8','2.本人','2.本人');
+  _hinodeAddOval(files,'CT8','CY9');
+  if(p.relation==='家族'){ xml=_setXlsxCellHighlight(xml,'DB12','6.家族','6.家族'); _hinodeAddOval(files,'DB12','DG13'); }
+  else { xml=_setXlsxCellHighlight(xml,'DB8','2.本人','2.本人'); _hinodeAddOval(files,'DB8','DG9'); }
   const kyufu=10-(Number(p.burden)||0);
-  if(kyufu>=9) xml=_setXlsxCellHighlight(xml,'DP8','10・９', kyufu===10?'10':'９');
-  else xml=_setXlsxCellHighlight(xml,'DP11','８・７', kyufu===8?'８':'７');
+  if(kyufu>=9){
+    const sel=kyufu===10?'10':'９';
+    xml=_setXlsxCellHighlight(xml,'DP8','10・９', sel);
+    const fr=_hinodeHighlightFrac('10・９', sel, 7);
+    if(fr) _hinodeAddOvalPartial(files,'DP8','DV10',fr[0],fr[1]);
+  } else {
+    const sel=kyufu===8?'８':'７';
+    xml=_setXlsxCellHighlight(xml,'DP11','８・７', sel);
+    const fr=_hinodeHighlightFrac('８・７', sel, 7);
+    if(fr) _hinodeAddOvalPartial(files,'DP11','DV13',fr[0],fr[1]);
+  }
 
   /* ---- 受診者情報（氏名・生年月日・性別） ---- */
-  xml=_setXlsxCellText(xml,'E21',p.name||'');
+  xml=_setXlsxCellRichSize(xml,'E21',p.name||'',10,'ＭＳ 明朝');
   const be=_hinodeEra(p.birth);
   if(be){
-    xml=_setXlsxCellText(xml,'AY23',(be.year===1?'元':be.year)+'　年　'+be.month+'　月　'+be.day+'　日');
-    if(be.era==='令和') xml=_setXlsxCellHighlight(xml,'AX21',' 5令',' 5令');
-    else if(be.era==='昭和') xml=_setXlsxCellHighlight(xml,'AP23','3 昭 4 平','3 昭');
-    else if(be.era==='平成') xml=_setXlsxCellHighlight(xml,'AP23','3 昭 4 平','4 平');
-    else if(be.era==='大正') xml=_setXlsxCellHighlight(xml,'AP21','1 明 2 大メイダイ','2 大');
-    else if(be.era==='明治') xml=_setXlsxCellHighlight(xml,'AP21','1 明 2 大メイダイ','1 明');
+    xml=_setXlsxCellRichSize(xml,'AY23',(be.year===1?'元':be.year)+'　年　'+be.month+'　月　'+be.day+'　日',10.5,'ＭＳ 明朝');
+    if(be.era==='令和'){ xml=_setXlsxCellHighlight(xml,'AX21',' 5令',' 5令'); _hinodeAddOval(files,'AX21','BC22'); }
+    else if(be.era==='昭和'){ xml=_setXlsxCellHighlight(xml,'AP23','3 昭 4 平','3 昭'); const fr=_hinodeHighlightFrac('3 昭 4 平','3 昭',8); if(fr) _hinodeAddOvalPartial(files,'AP23','AW24',fr[0],fr[1]); }
+    else if(be.era==='平成'){ xml=_setXlsxCellHighlight(xml,'AP23','3 昭 4 平','4 平'); const fr=_hinodeHighlightFrac('3 昭 4 平','4 平',8); if(fr) _hinodeAddOvalPartial(files,'AP23','AW24',fr[0],fr[1]); }
+    else if(be.era==='大正'){ xml=_setXlsxCellHighlight(xml,'AP21','1 明 2 大メイダイ','2 大'); const fr=_hinodeHighlightFrac('1 明 2 大メイダイ','2 大',8); if(fr) _hinodeAddOvalPartial(files,'AP21','AW22',fr[0],fr[1]); }
+    else if(be.era==='明治'){ xml=_setXlsxCellHighlight(xml,'AP21','1 明 2 大メイダイ','1 明'); const fr=_hinodeHighlightFrac('1 明 2 大メイダイ','1 明',8); if(fr) _hinodeAddOvalPartial(files,'AP21','AW22',fr[0],fr[1]); }
   }
-  if(p.gender==='男') xml=_setXlsxCellHighlight(xml,'AL21','1 男オトコ','1 男オトコ');
-  else if(p.gender==='女') xml=_setXlsxCellHighlight(xml,'AL23','2 女オンナ','2 女オンナ');
+  if(p.gender==='男'){ xml=_setXlsxCellHighlight(xml,'AL21','1 男オトコ','1 男オトコ'); _hinodeAddOval(files,'AL21','AO22'); }
+  else if(p.gender==='女'){ xml=_setXlsxCellHighlight(xml,'AL23','2 女オンナ','2 女オンナ'); _hinodeAddOval(files,'AL23','AO24'); }
 
   /* ---- 負傷名(1) ---- */
-  if(p.injury) xml=_setXlsxCellText(xml,'E26','(1)　'+p.injury+(p.injuryPart?'（'+p.injuryPart+'）':''));
+  if(p.injury) xml=_setXlsxCellRichSize(xml,'E26','(1)　'+p.injury+(p.injuryPart?'（'+p.injuryPart+'）':''),10,'ＭＳ 明朝');
 
   /* ---- 施術証明欄（施術所情報） ---- */
-  xml=_setXlsxCellText(xml,'L58','所在地〒'+(cl.zip||'')+'　'+(cl.addr||''));
-  xml=_setXlsxCellText(xml,'L59','名　称　'+(cl.name||''));
-  xml=_setXlsxCellText(xml,'L60','電　話　'+(cl.tel||''));
-  xml=_setXlsxCellText(xml,'L62','氏　名　'+(cl.manager||'')+'　　㊞');
+  xml=_setXlsxCellRichSize(xml,'L58','所在地〒'+(cl.zip||'')+'　'+(cl.addr||''),10.5,'ＭＳ Ｐ明朝');
+  xml=_setXlsxCellRichSize(xml,'L59','名　称　'+(cl.name||''),10.5,'ＭＳ Ｐ明朝');
+  xml=_setXlsxCellRichSize(xml,'L60','電　話　'+(cl.tel||''),10.5,'ＭＳ Ｐ明朝');
+  xml=_setXlsxCellRichSize(xml,'L62','氏　名　'+(cl.manager||'')+'　　㊞',10.5,'ＭＳ Ｐ明朝');
 
   /* ---- 料金（初検料・再検料・整復料・往療料・施術情報提供料・温罨法料・電療料） ---- */
-  xml=_setXlsxCellText(xml,'E33','初検料　'+(c.shokenFee?num(c.shokenFee):'')+'円');
-  xml=_setXlsxCellText(xml,'AA34','再検料　'+(c.saikenFee?num(c.saikenFee):''));
-  xml=_setXlsxCellText(xml,'AC35','(1)　'+(c.jutsu?num(c.jutsu):'')+'円');
-  if(c.ohryoFee) xml=_setXlsxCellText(xml,'AU33','往療料　'+(rec.ohryoCount||0)+'回　'+num(c.ohryoFee)+'円');
-  if(c.infoFee) xml=_setXlsxCellText(xml,'CR33','施術情報提供料　'+num(c.infoFee)+'円');
-  if(c.onshitsuFee) xml=_setXlsxCellText(xml,'BF37','　'+(rec.onshitsuCount||0)+'回　'+num(c.onshitsuFee)+'円');
-  if(c.denryoFee) xml=_setXlsxCellText(xml,'BT37','　'+(rec.denryoCount||0)+'回　'+num(c.denryoFee)+'円');
-  xml=_setXlsxCellText(xml,'DT44',num(c.total)+'円');
-  xml=_setXlsxCellText(xml,'DT45',num(c.burden)+'円');
-  xml=_setXlsxCellText(xml,'DT46',num(c.seikyu)+'円');
+  xml=_setXlsxCellRichSize(xml,'E33','初検料　'+(c.shokenFee?num(c.shokenFee):'')+'円',10.5,'ＭＳ Ｐ明朝');
+  xml=_setXlsxCellRichSize(xml,'AA34','再検料　'+(c.saikenFee?num(c.saikenFee):''),10.5,'ＭＳ Ｐ明朝');
+  xml=_setXlsxCellRichSize(xml,'AC35','(1)　'+(c.jutsu?num(c.jutsu):'')+'円',10.5,'ＭＳ Ｐ明朝');
+  if(c.ohryoFee) xml=_setXlsxCellRichSize(xml,'AU33','往療料　'+(rec.ohryoCount||0)+'回　'+num(c.ohryoFee)+'円',10.5,'ＭＳ Ｐ明朝');
+  if(c.infoFee) xml=_setXlsxCellRichSize(xml,'CR33','施術情報提供料　'+num(c.infoFee)+'円',9,'ＭＳ Ｐ明朝');
+  if(c.onshitsuFee) xml=_setXlsxCellRichSize(xml,'BF37','　'+(rec.onshitsuCount||0)+'回　'+num(c.onshitsuFee)+'円',10.5,'ＭＳ Ｐ明朝');
+  if(c.denryoFee) xml=_setXlsxCellRichSize(xml,'BT37','　'+(rec.denryoCount||0)+'回　'+num(c.denryoFee)+'円',10.5,'ＭＳ Ｐ明朝');
+  xml=_setXlsxCellRichSize(xml,'DT44',num(c.total)+'円',10,'ＭＳ 明朝');
+  xml=_setXlsxCellRichSize(xml,'DT45',num(c.burden)+'円',10,'ＭＳ 明朝');
+  xml=_setXlsxCellRichSize(xml,'DT46',num(c.seikyu)+'円',10,'ＭＳ 明朝');
   const hokenCell={社保:'CB8',国保:'CB11',後期:'CJ11',共済:'CJ8'}[p.ins];
+  const hokenMergeEnd={CB8:'CE10',CF8:'CI10',CJ8:'CM10',CB11:'CE13',CF11:'CI13',CJ11:'CM13'};
   if(hokenCell){
     const label={CB8:'1.協キョウ',CJ8:'3.共',CB11:'4.国コク',CJ11:'6.後期コウキ'}[hokenCell];
     xml=_setXlsxCellHighlight(xml,hokenCell,label,label);
+    _hinodeAddOval(files,hokenCell,hokenMergeEnd[hokenCell]);
   }
 
   /* ---- 支払機関欄（振込先） ---- */
   xml=_setXlsxCellHighlight(xml,'E50','1:振込       ','1:振込       ');
-  xml=_setXlsxCellText(xml,'CR49',cl.regNo||'');
+  _hinodeAddOval(files,'E50','N50');
+  xml=_setXlsxCellRichSize(xml,'CR49',cl.regNo||'',10,'ＭＳ 明朝');
   if((bk.kind||'').indexOf('金庫')>=0 || (bk.kind||'').indexOf('信金')>=0){
     xml=_setXlsxCellHighlight(xml,'O51','2:当座 ','2:当座 ');
-    xml=_setXlsxCellText(xml,'W51','　　'+(bk.name||'')+'　金庫　'+(bk.branch||'')+'　支店');
+    _hinodeAddOval(files,'O51','U51');
+    xml=_setXlsxCellRichSize(xml,'W51','　　'+(bk.name||'')+'　金庫　'+(bk.branch||'')+'　支店',10,'ＭＳ 明朝');
   } else {
     xml=_setXlsxCellHighlight(xml,'O50','1:普通 ','1:普通 ');
-    xml=_setXlsxCellText(xml,'W50','　　'+(bk.name||'')+'　銀行　'+(bk.branch||'')+'　本店');
+    _hinodeAddOval(files,'O50','U50');
+    xml=_setXlsxCellRichSize(xml,'W50','　　'+(bk.name||'')+'　銀行　'+(bk.branch||'')+'　本店',10,'ＭＳ 明朝');
   }
 
   files['xl/worksheets/sheet1.xml']=_strToU8(xml);
   _hinodeXlsxScrubCoreProps(files, cl.manager||cl.name);
   const bytes=fflate.zipSync(files,{level:6});
   _download(bytes, p.name+'_柔道整復施術療養費支給申請書_様式第５号_'+ym+'.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-  toast(p.name+'　様式第５号Excel出力（受診者情報・負傷名(1)・料金・保険種別・振込先まで差し込み。負傷年月日等の元号ボックスと(2)〜(5)以降の負傷は白紙です）');
+  toast(p.name+'　様式第５号Excel出力（受診者情報・負傷名(1)・料金・保険種別・振込先まで、実際の丸囲みで差し込み。負傷年月日等の元号ボックスと(2)〜(5)以降の負傷は白紙です）');
 }
 
 </script>
