@@ -223,6 +223,15 @@ table.grid td.ctr,table.grid th.ctr{text-align:center;}
         </table>
       </div>
     </div>
+    <div class="panel" style="margin-top:14px">
+      <h2 class="sec">患者名簿　明細・Excel出力</h2>
+      <div class="row" style="margin-bottom:10px;align-items:flex-end;gap:10px">
+        <div class="field"><label>対象年月</label><input type="month" id="meiboSkMonth" onchange="renderMeiboShukei()"></div>
+        <button class="btn primary" onclick="exportMeiboShukei(document.getElementById('meiboSkMonth').value)">明細・Excel出力</button>
+      </div>
+      <p class="hint" style="margin:0 0 10px">対象月に施術記録がある患者を、氏名・保険種別・施術日数・費用額・一部負担・請求額の一覧にしてExcel出力します（保険種別を問わず全患者を1つの表にまとめます）。</p>
+      <div id="meiboShukeiArea"></div>
+    </div>
   </section>
 
   <!-- ============ 施術入力 ============ -->
@@ -743,6 +752,52 @@ function renderMeibo(){
       </td>`;
     body.appendChild(tr);
   });
+  renderMeiboShukei();
+}
+/* 患者名簿：氏名・保険種別・施術日数・費用額・一部負担・請求額の明細（月次・保険種別問わず1表） */
+function renderMeiboShukei(){
+  const mEl=document.getElementById('meiboSkMonth'); if(!mEl) return;
+  if(!mEl.value) mEl.value=curYM();
+  const ym=mEl.value;
+  const area=document.getElementById('meiboShukeiArea'); if(!area) return;
+  const ps=DB.patients.filter(p=>recCount(p.id,ym)>0);
+  if(!ps.length){ area.innerHTML='<p class="muted">対象月の施術記録がある患者がいません。</p>'; return; }
+  let sumTotal=0, sumBurden=0, sumSeikyu=0;
+  const rows=ps.map(p=>{
+    const c=calc(p,ym); sumTotal+=c.total; sumBurden+=c.burden; sumSeikyu+=c.seikyu;
+    return `<tr><td>${esc(p.name)}</td><td class="ctr"><span class="tag ${INS_CLASS[p.ins]||'seiho'}">${esc(p.ins)}</span></td>
+      <td class="num">${c.count}日</td><td class="num">${yen(c.total)}</td><td class="num">${yen(c.burden)}</td>
+      <td class="num">${yen(c.seikyu)}</td></tr>`;
+  }).join('');
+  area.innerHTML=`<table class="grid">
+      <thead><tr><th>氏名</th><th class="ctr">保険種別</th><th class="ctr">施術日数</th>
+        <th class="ctr">費用額</th><th class="ctr">一部負担</th><th class="ctr">請求額</th></tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr style="font-weight:700"><td colspan="2">合計（${ps.length}名）</td>
+        <td class="num">${ps.reduce((s,p)=>s+calc(p,ym).count,0)}日</td>
+        <td class="num">${yen(sumTotal)}</td><td class="num">${yen(sumBurden)}</td><td class="num">${yen(sumSeikyu)}</td></tr></tfoot>
+    </table>`;
+}
+function exportMeiboShukei(ym){
+  if(!ym){ toast('対象年月を選んでください'); return; }
+  const ps=DB.patients.filter(p=>recCount(p.id,ym)>0);
+  if(!ps.length){ toast('対象月の施術記録がある患者がいません'); return; }
+  const cl=DB.settings.clinic;
+  const rows=[
+    {cells:['患者名簿　明細'], bold:true},
+    {cells:['施術所名', cl.name||'']},
+    {cells:['対象年月', wareki(ym)+'分']},
+    {cells:[]},
+    {cells:['氏名','保険種別','施術日数','費用額','一部負担','請求額'], bold:true}
+  ];
+  let sumCount=0,sumTotal=0,sumBurden=0,sumSeikyu=0;
+  ps.forEach(p=>{
+    const c=calc(p,ym); sumCount+=c.count; sumTotal+=c.total; sumBurden+=c.burden; sumSeikyu+=c.seikyu;
+    rows.push({cells:[p.name, p.ins, c.count, c.total, c.burden, c.seikyu]});
+  });
+  rows.push({cells:['合計（'+ps.length+'名）','',sumCount,sumTotal,sumBurden,sumSeikyu], bold:true});
+  xlsxDownload('患者名簿明細', rows, [16,10,10,12,12,12], '患者名簿_明細_'+ym+'.xlsx');
+  toast('患者名簿　明細Excel出力（'+ps.length+'名 '+yen(sumSeikyu)+'）');
 }
 
 /* ============================================================
