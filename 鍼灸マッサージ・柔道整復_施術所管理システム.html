@@ -3567,7 +3567,8 @@ function renderJudoShukeiBody(){
     return `<tr><td>${esc(p.name)}</td><td class="ctr"><span class="tag" style="background:#6d4c41">${esc(p.ins)}</span></td>
       <td class="num">${c.count}日</td><td class="num">${yen(c.total)}</td><td class="num">${yen(c.burden)}</td>
       <td class="num">${yen(c.seikyu)}</td>
-      <td class="ctr"><button class="btn sm primary" onclick="exportJudoMeisai('${p.id}','${ym}')">支給申請書Excel</button></td></tr>`;
+      <td class="ctr"><button class="btn sm primary" onclick="exportJudoMeisai('${p.id}','${ym}')">支給申請書Excel</button>
+      <button class="btn sm" style="margin-top:3px" onclick="linkExcelJudoShinseisho('${p.id}','${ym}')">⑤様式第５号へ差込</button></td></tr>`;
   }).join('');
   body.innerHTML=`<table class="grid">
       <thead><tr><th>氏名</th><th class="ctr">保険種別</th><th class="ctr">施術日数</th>
@@ -3798,6 +3799,37 @@ function linkJudoSoukatsu2(ym){
 function downloadJudoShinseishoBlank(){
   _download(_b64ToU8(TPL_JUDO_SHINSEISHO_BLANK_B64), '柔道整復施術療養費支給申請書_様式第５号_白紙.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   toast('様式第５号（白紙）をダウンロードしました');
+}
+/* 様式第５号（柔道整復施術療養費支給申請書）へ、確実に位置を特定できた項目
+   （施術所情報・初検料・合計・一部負担金・請求金額・保険種別の丸）だけを
+   実物Excelへ差し込む。負傷名・受診者氏名・住所・部位別の整復料・往療料・
+   保険者番号・元号年月日など、1文字ずつの枠取り（OCR用）になっている項目は
+   位置を誤ると様式が崩れるため差し込みを行わず、白紙のまま残す（既存の
+   支給申請書Excelの内容を見ながら手書きしてください） */
+function linkExcelJudoShinseisho(pid, ym){
+  const p=getJudoPatient(pid); if(!p) return;
+  const c=judoCalc(p, ym);
+  const cl=DB.settings.clinic;
+  const files=fflate.unzipSync(_b64ToU8(TPL_JUDO_SHINSEISHO_BLANK_B64));
+  let xml=_u8ToStr(files['xl/worksheets/sheet1.xml']);
+  xml=_setXlsxCellText(xml,'L58','所在地〒'+(cl.zip||'')+'　'+(cl.addr||''));
+  xml=_setXlsxCellText(xml,'L59','名　称　'+(cl.name||''));
+  xml=_setXlsxCellText(xml,'L60','電　話　'+(cl.tel||''));
+  xml=_setXlsxCellText(xml,'L62','氏　名　'+(cl.manager||'')+'　　㊞');
+  xml=_setXlsxCellText(xml,'E33','初検料　'+(c.shokenFee?num(c.shokenFee):'')+'円');
+  xml=_setXlsxCellText(xml,'DT44',num(c.total)+'円');
+  xml=_setXlsxCellText(xml,'DT45',num(c.burden)+'円');
+  xml=_setXlsxCellText(xml,'DT46',num(c.seikyu)+'円');
+  const hokenCell={社保:'CB8',国保:'CB11',後期:'CJ11',共済:'CJ8'}[p.ins];
+  if(hokenCell){
+    const label={CB8:'1.協キョウ',CJ8:'3.共',CB11:'4.国コク',CJ11:'6.後期コウキ'}[hokenCell];
+    xml=_setXlsxCellHighlight(xml,hokenCell,label,label);
+  }
+  files['xl/worksheets/sheet1.xml']=_strToU8(xml);
+  _hinodeXlsxScrubCoreProps(files, cl.manager||cl.name);
+  const bytes=fflate.zipSync(files,{level:6});
+  _download(bytes, p.name+'_柔道整復施術療養費支給申請書_様式第５号_'+ym+'.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  toast(p.name+'　様式第５号Excel出力（施術所情報・初検料・合計金額・保険種別のみ差し込み。負傷名・受診者情報・部位別料金・施術日等は白紙のままです）');
 }
 
 </script>
