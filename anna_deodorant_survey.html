@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anna消臭剤アンケート</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Noto+Serif+JP:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy-deep:#0d1a4b;
+    --navy-mid:#16266e;
+    --navy-light:#22348c;
+    --gold:#d9b25c;
+    --gold-light:#f3dfa0;
+    --gold-dark:#a97f2b;
+    --cream:#fbf6e9;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    padding:24px 12px 60px;
+    min-height:100vh;
+    background:radial-gradient(circle at 50% 0%, #24357f 0%, #0a1440 70%);
+    font-family:'Noto Serif JP', serif;
+    color:var(--cream);
+    display:flex;
+    justify-content:center;
+  }
+  .card{
+    width:100%;
+    max-width:560px;
+  }
+  .logo-frame{
+    position:relative;
+    border:3px solid var(--gold);
+    border-radius:18px;
+    background:linear-gradient(180deg, var(--navy-light) 0%, var(--navy-deep) 100%);
+    padding:34px 20px 28px;
+    text-align:center;
+    box-shadow:0 0 0 6px rgba(217,178,92,0.15), 0 10px 30px rgba(0,0,0,0.35);
+    overflow:hidden;
+  }
+  .corner{
+    position:absolute;
+    width:54px;
+    height:54px;
+    opacity:0.9;
+  }
+  .corner svg{width:100%;height:100%;}
+  .corner.tl{top:8px;left:8px;}
+  .corner.tr{top:8px;right:8px;transform:scaleX(-1);}
+  .corner.bl{bottom:8px;left:8px;transform:scaleY(-1);}
+  .corner.br{bottom:8px;right:8px;transform:scale(-1,-1);}
+  .logo-name{
+    font-family:'Great Vibes', cursive;
+    font-size:64px;
+    line-height:1;
+    color:#fff;
+    text-shadow:0 0 12px rgba(255,255,255,0.35);
+    margin:6px 0 6px;
+  }
+  .divider{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:10px;
+    margin:10px auto 4px;
+    width:70%;
+  }
+  .divider .line{flex:1;height:1px;background:var(--gold);}
+  .divider .dot{width:6px;height:6px;background:var(--gold);transform:rotate(45deg);}
+  .subtitle{
+    font-size:15px;
+    letter-spacing:0.08em;
+    color:var(--gold-light);
+    margin-top:4px;
+  }
+  .lead{
+    margin:22px 4px 26px;
+    font-size:13.5px;
+    line-height:1.9;
+    color:#e7e9f5;
+    text-align:left;
+  }
+  .lead strong{color:var(--gold-light);}
+  form{margin-top:8px;}
+  fieldset{
+    border:1px solid rgba(217,178,92,0.5);
+    border-radius:14px;
+    margin:0 0 20px;
+    padding:16px 16px 18px;
+    background:rgba(255,255,255,0.03);
+  }
+  legend{
+    padding:2px 10px;
+    font-size:14px;
+    color:var(--gold-light);
+    letter-spacing:0.05em;
+    font-weight:600;
+  }
+  .q{margin-bottom:16px;}
+  .q:last-child{margin-bottom:0;}
+  .q-num{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    width:20px;height:20px;
+    border-radius:50%;
+    background:var(--gold);
+    color:var(--navy-deep);
+    font-size:12px;
+    font-weight:700;
+    margin-right:6px;
+  }
+  .q-text{
+    font-size:14.5px;
+    color:#fff;
+    font-weight:600;
+    line-height:1.5;
+  }
+  .options{
+    margin:10px 0 0 26px;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+  }
+  .options label{
+    display:flex;
+    align-items:flex-start;
+    gap:8px;
+    font-size:13.5px;
+    color:#eef0fa;
+    cursor:pointer;
+  }
+  .options input[type="radio"],
+  .options input[type="checkbox"]{
+    accent-color:var(--gold);
+    width:16px;height:16px;
+    margin-top:1px;
+    flex:none;
+  }
+  .other-text{
+    margin-left:24px;
+    margin-top:4px;
+    width:calc(100% - 24px);
+    background:rgba(255,255,255,0.08);
+    border:1px solid rgba(217,178,92,0.5);
+    border-radius:8px;
+    color:#fff;
+    padding:6px 8px;
+    font-size:13px;
+    font-family:inherit;
+  }
+  textarea{
+    width:100%;
+    margin-top:10px;
+    min-height:90px;
+    resize:vertical;
+    background:rgba(255,255,255,0.08);
+    border:1px solid rgba(217,178,92,0.5);
+    border-radius:10px;
+    color:#fff;
+    padding:10px;
+    font-size:13.5px;
+    font-family:inherit;
+  }
+  .stars{
+    display:flex;
+    flex-direction:row-reverse;
+    justify-content:flex-end;
+    gap:4px;
+    margin:10px 0 0 26px;
+    font-size:30px;
+  }
+  .stars input{position:absolute;opacity:0;pointer-events:none;}
+  .stars label{
+    cursor:pointer;
+    color:rgba(255,255,255,0.25);
+    transition:color .15s;
+  }
+  .stars input:checked ~ label,
+  .stars label:hover,
+  .stars label:hover ~ label{
+    color:var(--gold);
+  }
+  .required{color:#ff9d9d;font-size:11px;margin-left:4px;font-weight:400;}
+  button[type="submit"]{
+    display:block;
+    width:100%;
+    margin-top:6px;
+    padding:14px;
+    border:none;
+    border-radius:30px;
+    background:linear-gradient(180deg, var(--gold-light), var(--gold-dark));
+    color:var(--navy-deep);
+    font-size:16px;
+    font-weight:700;
+    letter-spacing:0.06em;
+    font-family:inherit;
+    cursor:pointer;
+    box-shadow:0 6px 16px rgba(217,178,92,0.35);
+  }
+  button[type="submit"]:active{transform:translateY(1px);}
+  .footnote{
+    text-align:center;
+    font-size:11.5px;
+    color:rgba(255,255,255,0.55);
+    margin-top:18px;
+    line-height:1.7;
+  }
+</style>
+</head>
+<body>
+<div class="card">
+
+  <div class="logo-frame">
+    <div class="corner tl"><svg viewBox="0 0 60 60"><path d="M4 4 C 20 4, 4 20, 4 4 Z" fill="none"/><g stroke="#d9b25c" stroke-width="1.4" fill="none"><path d="M6 30 Q6 6 30 6"/></g><circle cx="6" cy="30" r="3" fill="#d9b25c"/><circle cx="30" cy="6" r="3" fill="#d9b25c"/><circle cx="16" cy="10" r="2.4" fill="#d9b25c"/><circle cx="10" cy="18" r="2.2" fill="#d9b25c"/></svg></div>
+    <div class="corner tr"><svg viewBox="0 0 60 60"><g stroke="#d9b25c" stroke-width="1.4" fill="none"><path d="M6 30 Q6 6 30 6"/></g><circle cx="6" cy="30" r="3" fill="#d9b25c"/><circle cx="30" cy="6" r="3" fill="#d9b25c"/><circle cx="16" cy="10" r="2.4" fill="#d9b25c"/><circle cx="10" cy="18" r="2.2" fill="#d9b25c"/></svg></div>
+    <div class="corner bl"><svg viewBox="0 0 60 60"><g stroke="#d9b25c" stroke-width="1.4" fill="none"><path d="M6 30 Q6 6 30 6"/></g><circle cx="6" cy="30" r="3" fill="#d9b25c"/><circle cx="30" cy="6" r="3" fill="#d9b25c"/><circle cx="16" cy="10" r="2.4" fill="#d9b25c"/><circle cx="10" cy="18" r="2.2" fill="#d9b25c"/></svg></div>
+    <div class="corner br"><svg viewBox="0 0 60 60"><g stroke="#d9b25c" stroke-width="1.4" fill="none"><path d="M6 30 Q6 6 30 6"/></g><circle cx="6" cy="30" r="3" fill="#d9b25c"/><circle cx="30" cy="6" r="3" fill="#d9b25c"/><circle cx="16" cy="10" r="2.4" fill="#d9b25c"/><circle cx="10" cy="18" r="2.2" fill="#d9b25c"/></svg></div>
+
+    <div class="logo-name">Anna</div>
+    <div class="divider"><span class="line"></span><span class="dot"></span><span class="line"></span></div>
+    <div class="subtitle">消臭剤サンプル アンケート</div>
+  </div>
+
+  <p class="lead">
+    この度は <strong>Anna化粧品 消臭剤サンプル（30mm）</strong> をお試しいただき、誠にありがとうございます。<br>
+    今後の商品開発の参考とさせていただきますので、下記のアンケートにご協力をお願いいたします。<br>
+    ご回答は自動的に担当窓口へ届きます。
+  </p>
+
+  <form action="https://formsubmit.co/kinkonkan6262@gmail.com" method="POST">
+    <input type="hidden" name="_subject" value="【Annaアンケート】消臭剤サンプル(30mm)ご意見">
+    <input type="hidden" name="_template" value="table">
+    <input type="hidden" name="_captcha" value="false">
+    <input type="hidden" name="_next" value="https://kinkonkan6262.github.io/6262/thanks.html">
+    <input type="text" name="_honey" style="display:none" tabindex="-1" autocomplete="off">
+
+    <fieldset>
+      <legend>【使用前の臭い】</legend>
+
+      <div class="q">
+        <span class="q-text"><span class="q-num">1</span>使用した場所はどこですか？<span class="required">必須</span></span>
+        <div class="options">
+          <label><input type="radio" name="q1_使用場所" value="靴・靴箱" required>靴・靴箱</label>
+          <label><input type="radio" name="q1_使用場所" value="衣類・布製品">衣類・布製品</label>
+          <label><input type="radio" name="q1_使用場所" value="車内">車内</label>
+          <label><input type="radio" name="q1_使用場所" value="トイレ">トイレ</label>
+          <label><input type="radio" name="q1_使用場所" value="ペット周辺">ペット周辺</label>
+        </div>
+      </div>
+
+      <div class="q">
+        <span class="q-text"><span class="q-num">2</span>使用前のにおいの強さを教えてください（1＝全く臭わない　5＝非常に強い臭い）<span class="required">必須</span></span>
+        <div class="options">
+          <label><input type="radio" name="q2_使用前の強さ" value="1" required>1</label>
+          <label><input type="radio" name="q2_使用前の強さ" value="2">2</label>
+          <label><input type="radio" name="q2_使用前の強さ" value="3">3</label>
+          <label><input type="radio" name="q2_使用前の強さ" value="4">4</label>
+          <label><input type="radio" name="q2_使用前の強さ" value="5">5</label>
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>【使用後の効果について】</legend>
+
+      <div class="q">
+        <span class="q-text"><span class="q-num">3</span>スプレー後、臭いはどうなりましたか？<span class="required">必須</span></span>
+        <div class="options">
+          <label><input type="radio" name="q3_効果" value="かなり弱くなった" required>かなり弱くなった</label>
+          <label><input type="radio" name="q3_効果" value="少し弱くなった">少し弱くなった</label>
+          <label><input type="radio" name="q3_効果" value="変わらない">変わらない</label>
+          <label><input type="radio" name="q3_効果" value="強くなった">強くなった</label>
+        </div>
+      </div>
+
+      <div class="q">
+        <span class="q-text"><span class="q-num">4</span>使用後の臭いの強さを教えてください（1＝全く臭わない　5＝非常に強い臭い）<span class="required">必須</span></span>
+        <div class="options">
+          <label><input type="radio" name="q4_使用後の強さ" value="1" required>1</label>
+          <label><input type="radio" name="q4_使用後の強さ" value="2">2</label>
+          <label><input type="radio" name="q4_使用後の強さ" value="3">3</label>
+          <label><input type="radio" name="q4_使用後の強さ" value="4">4</label>
+          <label><input type="radio" name="q4_使用後の強さ" value="5">5</label>
+        </div>
+      </div>
+
+      <div class="q">
+        <span class="q-text"><span class="q-num">5</span>効果を感じ始めたのはどのくらいですか？<span class="required">必須</span></span>
+        <div class="options">
+          <label><input type="radio" name="q5_効果発現時間" value="すぐ" required>すぐ</label>
+          <label><input type="radio" name="q5_効果発現時間" value="1〜5分">1〜5分</label>
+          <label><input type="radio" name="q5_効果発現時間" value="5〜30分">5〜30分</label>
+          <label><input type="radio" name="q5_効果発現時間" value="30分〜1時間">30分〜1時間</label>
+          <label><input type="radio" name="q5_効果発現時間" value="1時間以上">1時間以上</label>
+          <label><input type="radio" name="q5_効果発現時間" value="効果を感じなかった">効果を感じなかった</label>
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>【香り・使用感】</legend>
+
+      <div class="q">
+        <span class="q-text"><span class="q-num">6</span>スプレーした後の香りは？<span class="required">必須</span></span>
+        <div class="options">
+          <label><input type="radio" name="q6_香りの質" value="とても良い" required>とても良い</label>
+          <label><input type="radio" name="q6_香りの質" value="良い">良い</label>
+          <label><input type="radio" name="q6_香りの質" value="普通">普通</label>
+          <label><input type="radio" name="q6_香りの質" value="あまり良くない">あまり良くない</label>
+          <label><input type="radio" name="q6_香りの質" value="苦手">苦手</label>
+        </div>
+      </div>
+
+      <div class="q">
+        <span class="q-text"><span class="q-num">7</span>香りの強さは？<span class="required">必須</span></span>
+        <div class="options">
+          <label><input type="radio" name="q7_香りの強さ" value="強すぎる" required>強すぎる</label>
+          <label><input type="radio" name="q7_香りの強さ" value="やや強い">やや強い</label>
+          <label><input type="radio" name="q7_香りの強さ" value="ちょうど良い">ちょうど良い</label>
+          <label><input type="radio" name="q7_香りの強さ" value="やや弱い">やや弱い</label>
+          <label><input type="radio" name="q7_香りの強さ" value="弱すぎる">弱すぎる</label>
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>【総合評価】</legend>
+
+      <div class="q">
+        <span class="q-text"><span class="q-num">8</span>どのような臭いに効果を感じましたか？（複数回答可）</span>
+        <div class="options">
+          <label><input type="checkbox" name="q8_効果を感じた臭い" value="汗">汗</label>
+          <label><input type="checkbox" name="q8_効果を感じた臭い" value="体臭">体臭</label>
+          <label><input type="checkbox" name="q8_効果を感じた臭い" value="タバコ">タバコ</label>
+          <label><input type="checkbox" name="q8_効果を感じた臭い" value="生ごみ">生ごみ</label>
+          <label><input type="checkbox" name="q8_効果を感じた臭い" value="靴・足">靴・足</label>
+          <label><input type="checkbox" name="q8_効果を感じた臭い" value="ペット">ペット</label>
+          <label><input type="checkbox" name="q8_効果を感じた臭い" value="魚・食品">魚・食品</label>
+          <label><input type="checkbox" name="q8_効果を感じた臭い" value="その他">その他</label>
+        </div>
+        <input type="text" class="other-text" name="q8_その他の内容" placeholder="「その他」の具体的な内容">
+      </div>
+
+      <div class="q">
+        <span class="q-text"><span class="q-num">9</span>この商品をまた使いたいと思いますか？<span class="required">必須</span></span>
+        <div class="options">
+          <label><input type="radio" name="q9_継続利用意向" value="ぜひ使いたい" required>ぜひ使いたい</label>
+          <label><input type="radio" name="q9_継続利用意向" value="使いたい">使いたい</label>
+          <label><input type="radio" name="q9_継続利用意向" value="どちらともいえない">どちらともいえない</label>
+          <label><input type="radio" name="q9_継続利用意向" value="あまり使いたくない">あまり使いたくない</label>
+          <label><input type="radio" name="q9_継続利用意向" value="使いたくない">使いたくない</label>
+        </div>
+      </div>
+
+      <div class="q">
+        <span class="q-text"><span class="q-num">10</span>総合評価を5段階で教えてください<span class="required">必須</span></span>
+        <div class="stars">
+          <input type="radio" id="s5" name="q10_総合評価" value="★★★★★（5）" required><label for="s5">★</label>
+          <input type="radio" id="s4" name="q10_総合評価" value="★★★★（4）"><label for="s4">★</label>
+          <input type="radio" id="s3" name="q10_総合評価" value="★★★（3）"><label for="s3">★</label>
+          <input type="radio" id="s2" name="q10_総合評価" value="★★（2）"><label for="s2">★</label>
+          <input type="radio" id="s1" name="q10_総合評価" value="★（1）"><label for="s1">★</label>
+        </div>
+      </div>
+
+      <div class="q">
+        <span class="q-text"><span class="q-num">11</span>改善してほしい点があればご記入ください</span>
+        <textarea name="q11_ご意見" placeholder="自由にご記入ください（任意）"></textarea>
+      </div>
+    </fieldset>
+
+    <button type="submit">アンケートを送信する</button>
+  </form>
+
+  <p class="footnote">
+    ご回答内容はお客様のご意見として商品改良の目的のみに利用いたします。<br>
+    Anna化粧品
+  </p>
+</div>
+</body>
+</html>
